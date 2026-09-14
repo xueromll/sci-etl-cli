@@ -4,6 +4,7 @@ import csv
 import io
 
 from sci_etl_core.exceptions import LLMError
+from sci_etl_core.models import TokenUsage
 
 from sci_etl_cli import shutdown
 
@@ -57,6 +58,47 @@ def test_run_applies_overrides_with_sqlite_state(run_cli, make_project, arxiv, l
     database = config_path.parent / "state" / "state.db"
     assert database.is_file()
     database.unlink()
+
+
+def test_run_applies_plugins_and_reports_usage(run_cli, make_project, arxiv, llm, write_plugins):
+    module = "run_rules"
+    config_path = make_project(
+        {
+            "export": {
+                "normalizer": f"{module}:DesignationNormalizer",
+                "validators": [f"{module}:short_period_planets"],
+            },
+            "llm": {"input_cost_per_million": 0.15, "output_cost_per_million": 0.6},
+        }
+    )
+    write_plugins(config_path.parent, module)
+    arxiv({0: PAGE[0][:1]})
+    llm(
+        entities=[
+            {"planet_name": "WASP-12 b", "orbital_period_days": 1.09, "mass_jupiter": None, "radius_jupiter": None},
+            {"planet_name": "SuperWASP-12 b", "orbital_period_days": None, "mass_jupiter": 1.47, "radius_jupiter": 1.9},
+            {"planet_name": "KELT-9 b", "orbital_period_days": 40.0, "mass_jupiter": 2.9, "radius_jupiter": 1.9},
+        ],
+        usage=TokenUsage(requests=2, prompt_tokens=1500, completion_tokens=120),
+    )
+
+    result = run_cli("run", str(config_path))
+
+    assert result.exit_code == 0, result.stderr
+    rows = _csv_rows(config_path.parent / "out" / "planets.csv")
+    assert [(row["planet_name"], row["orbital_period_days"], row["mass_jupiter"]) for row in rows] == [
+        ("WASP-12 b", "1.09", "1.47")
+    ]
+    assert "Entity 'KELT-9 b' rejected by NumericRangeValidator" in result.stderr
+    assert "LLM usage: 2 requests, 1,500 prompt and 120 completion tokens, estimated cost 0.0003" in result.stderr
+
+
+def test_broken_plugin_exits_three_before_any_request(run_cli, make_project, arxiv):
+    requests = arxiv(PAGE)
+    result = run_cli("run", str(make_project({"export": {"validators": ["absent_rules:check"]}})))
+    assert result.exit_code == 3
+    assert "could not be imported" in result.stderr
+    assert requests == []
 
 
 def test_aborted_run_exits_one_and_logs_the_cause(run_cli, make_project, arxiv, llm):

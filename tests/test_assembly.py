@@ -9,7 +9,9 @@ from sci_etl_core.models import RawRecord
 from sci_etl_cli.assembly import (
     build_http_client,
     build_llm_client,
+    build_normalizer,
     build_state_manager,
+    build_validators,
     read_prompt,
     read_state,
 )
@@ -39,6 +41,23 @@ def test_blank_prompt_is_reported(tmp_path):
     prompt.write_text("  \n", encoding="utf-8")
     with pytest.raises(ConfigurationError, match="empty"):
         read_prompt(prompt)
+
+
+def test_plugins_of_the_wrong_type_are_rejected(make_project, write_plugins):
+    module = "typed_rules"
+    config = load_cli_config(make_project({"export": {"normalizer": f"{module}:short_period_planets"}}))
+    write_plugins(config.project_root, module)
+    with pytest.raises(ConfigurationError, match="produced NumericRangeValidator, not a KeyNormalizer"):
+        build_normalizer(config)
+    swapped = config.model_copy(
+        update={
+            "export": config.export.model_copy(
+                update={"normalizer": None, "validators": [f"{module}:DesignationNormalizer"]}
+            )
+        }
+    )
+    with pytest.raises(ConfigurationError, match="produced DesignationNormalizer, not a RecordValidator"):
+        build_validators(swapped)
 
 
 @pytest.mark.asyncio

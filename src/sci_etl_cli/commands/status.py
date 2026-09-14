@@ -10,7 +10,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from sci_etl_cli import assembly
-from sci_etl_cli.errors import CliFailure, ExitCode
+from sci_etl_cli.errors import CliFailure
 from sci_etl_cli.options import config_argument
 from sci_etl_cli.output import print_json, stdout_console
 from sci_etl_cli.settings import CliConfig, load_cli_config
@@ -73,4 +73,4 @@ def count_rows(path: Path) -> int | None:
         with path.open("r", encoding="utf-8", newline="") as handle:
             return max(sum(1 for _row in csv.reader(handle)) - 1, 0)
     except (OSError, UnicodeDecodeError, csv.Error) as exc:
-        raise CliFailure(f"Export file could not be read: {path}: {exc}", ExitCode.FAILURE) from exc
+        raise CliFailure(f"Export file could not be read: {path}: {exc}") from exc

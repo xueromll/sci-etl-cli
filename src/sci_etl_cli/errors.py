@@ -28,15 +28,21 @@ class ExitCode(IntEnum):
 
 
 class CliFailure(click.ClickException):
-    """A failure shown as a single error line on stderr with its own exit code."""
+    """A failure shown as a single error line on stderr."""
 
-    def __init__(self, message: str, exit_code: ExitCode = ExitCode.FAILURE) -> None:
-        super().__init__(message)
-        self.exit_code = int(exit_code)
+    exit_code = ExitCode.FAILURE
 
     def show(self, file: IO[Any] | None = None) -> None:
         console = Console(file=file, stderr=file is None, highlight=False)
         console.print(f"[bold red]Error:[/] {escape(self.format_message())}")
+
+
+class ConfigurationFailure(CliFailure):
+    exit_code = ExitCode.CONFIGURATION
+
+
+class MissingDependencyFailure(CliFailure):
+    exit_code = ExitCode.MISSING_DEPENDENCY
 
 
 def describe_abort(aborted: PipelineAborted) -> str:
@@ -55,7 +61,7 @@ def missing_dependency_message(module_name: str | None) -> str:
 
 def to_cli_failure(error: SciEtlError | ModuleNotFoundError) -> CliFailure:
     if isinstance(error, ModuleNotFoundError):
-        return CliFailure(missing_dependency_message(error.name), ExitCode.MISSING_DEPENDENCY)
+        return MissingDependencyFailure(missing_dependency_message(error.name))
     if isinstance(error, ConfigurationError):
-        return CliFailure(str(error), ExitCode.CONFIGURATION)
-    return CliFailure(str(error), ExitCode.FAILURE)
+        return ConfigurationFailure(str(error))
+    return CliFailure(str(error))

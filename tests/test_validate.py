@@ -48,6 +48,23 @@ def test_missing_package_takes_precedence_with_exit_code_four(run_cli, make_proj
     assert "missing: pdfplumber (sci-etl-core[pdf])" in result.stdout
 
 
+def test_configured_plugins_are_loaded(run_cli, make_project, write_plugins):
+    module = "validate_rules"
+    config_path = make_project(
+        {"export": {"normalizer": f"{module}:DesignationNormalizer", "validators": [f"{module}:short_period_planets"]}}
+    )
+    write_plugins(config_path.parent, module)
+    result = run_cli("validate", str(config_path))
+    assert result.exit_code == 0, result.stdout
+    assert "validate_rules:DesignationNormalizer, validate_rules:short_period_planets" in result.stdout
+
+
+def test_broken_plugin_fails_validation(run_cli, make_project):
+    result = run_cli("validate", str(make_project({"export": {"validators": ["absent_rules:check"]}})))
+    assert result.exit_code == 3
+    assert "could not be imported" in result.stdout
+
+
 def test_online_checks_reach_arxiv_and_the_llm(run_cli, make_project, arxiv, llm):
     requests = arxiv({0: [("2609.00001v1", "Tidal decay of WASP-12 b", "We measure WASP-12 b.")]})
     client = llm()

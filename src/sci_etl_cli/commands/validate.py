@@ -61,6 +61,7 @@ def offline_checks(config: CliConfig) -> list[Check]:
         _query_check(config),
         _prompt_check("relevance prompt", config.prompts.relevance, ("JSON", "relevant")),
         _prompt_check("extraction prompt", config.prompts.extraction, extraction_terms),
+        _plugin_check(config),
         _api_key_check(config),
         _package_check(),
     ]
@@ -100,6 +101,19 @@ def _prompt_check(name: str, path: Path, required_terms: tuple[str, ...]) -> Che
     return Check(name, True, f"{path.name} mentions {', '.join(required_terms)}")
 
 
+def _plugin_check(config: CliConfig) -> Check:
+    normalizer = [config.export.normalizer] if config.export.normalizer else []
+    references = [*normalizer, *config.export.validators]
+    if not references:
+        return Check("plug-ins", True, "none configured")
+    try:
+        assembly.build_normalizer(config)
+        assembly.build_validators(config)
+    except ConfigurationError as exc:
+        return Check("plug-ins", False, str(exc))
+    return Check("plug-ins", True, ", ".join(references))
+
+
 def _api_key_check(config: CliConfig) -> Check:
     if config.llm.api_key.get_secret_value():
         return Check("API key", True, f"{config.llm.api_key_env} is set")
@@ -120,7 +134,7 @@ async def _arxiv_check(config: CliConfig) -> Check:
     try:
         extractor = assembly.build_extractor(config, http_client, discard)
         raw_listing = await extractor.search(config.pipeline.search_query, 1, 0)
-        _records, entries = extractor.parse_listing(raw_listing, set())
+        _records, entries = extractor.parse_listing(raw_listing or b"", set())
     except SciEtlError as exc:
         return Check("arXiv", False, str(exc), ExitCode.FAILURE)
     finally:

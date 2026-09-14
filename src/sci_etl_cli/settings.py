@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, StringConstraints, model_validator
 from sci_etl_core.config import (
     BaseAppConfig,
     HttpConfig,
@@ -13,17 +13,27 @@ from sci_etl_core.config import (
     RateLimitConfig,
     apply_api_key,
     load_yaml,
+    validate_config,
 )
-from sci_etl_core.exceptions import ConfigurationError
 
 DEFAULT_API_KEY_ENV = "LLM_API_KEY"
 _STRICT = ConfigDict(extra="forbid")
+
+ImportReference = Annotated[str, StringConstraints(pattern=r"^[A-Za-z_][\w.]*:[A-Za-z_][\w.]*$")]
 
 
 class CliLLMConfig(LLMConfig):
     model_config = _STRICT
 
     api_key_env: str = Field(default=DEFAULT_API_KEY_ENV, min_length=1)
+    input_cost_per_million: float | None = Field(default=None, ge=0)
+    output_cost_per_million: float | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def _check_prices(self) -> "CliLLMConfig":
+        if (self.input_cost_per_million is None) != (self.output_cost_per_million is None):
+            raise ValueError("set both input_cost_per_million and output_cost_per_million, or neither")
+        return self
 
 
 class CliHttpConfig(HttpConfig):
@@ -54,6 +64,8 @@ class ExportConfig(BaseModel):
     value_columns: list[str] = Field(min_length=1)
     numeric_clip: dict[str, tuple[float, float]] = Field(default_factory=dict)
     escape_formulas: bool = True
+    normalizer: ImportReference | None = None
+    validators: list[ImportReference] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check_columns(self) -> "ExportConfig":
@@ -100,6 +112,13 @@ class CliConfig(BaseAppConfig):
     state: StateConfig = Field(default_factory=StateConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
+    _project_root: Path = PrivateAttr(default_factory=Path.cwd)
+
+    @property
+    def project_root(self) -> Path:
+        """The folder relative paths and plug-in modules are resolved from."""
+        return self._project_root
+
 
 def load_cli_config(config_path: Path) -> CliConfig:
     """Load a CLI config file.
@@ -119,19 +138,7 @@ def load_cli_config(config_path: Path) -> CliConfig:
     raw = load_yaml(resolved)
     load_dotenv(resolved.parent / ".env")
     apply_api_key(raw, _api_key_env(raw))
-    try:
-        config = CliConfig.model_validate(raw)
-    except ValidationError as exc:
-        raise ConfigurationError(describe_validation_error(resolved, exc)) from None
-    return anchor_paths(config, resolved.parent)
-
-
-def describe_validation_error(path: Path, error: ValidationError) -> str:
-    problems = [
-        f"  {'.'.join(str(part) for part in detail['loc']) or 'config'}: {detail['msg']}"
-        for detail in error.errors(include_url=False, include_input=False)
-    ]
-    return "\n".join([f"Invalid configuration in {path}:", *problems])
+    return anchor_paths(validate_config(CliConfig, raw, resolved), resolved.parent)
 
 
 def anchor_paths(config: CliConfig, root: Path) -> CliConfig:
@@ -152,9 +159,11 @@ def anchor_paths(config: CliConfig, root: Path) -> CliConfig:
     )
     log_file = config.logging.file
     logging_config = config.logging.model_copy(update={"file": None if log_file is None else anchored(log_file)})
-    return config.model_copy(
+    anchored_config = config.model_copy(
         update={"prompts": prompts, "export": export, "state": state, "logging": logging_config}
     )
+    anchored_config._project_root = root
+    return anchored_config
 
 
 def _api_key_env(raw: dict[str, Any]) -> str:

@@ -13,6 +13,7 @@ from sci_etl_cli.errors import ExitCode, describe_abort
 from sci_etl_cli.options import config_argument, require_api_key, require_query
 from sci_etl_cli.output import run_logger, stderr_console
 from sci_etl_cli.settings import CliConfig, load_cli_config
+from sci_etl_cli.usage import describe_usage
 
 
 @click.command("run")
@@ -69,15 +70,12 @@ def run_command(
     )
     require_query(config.pipeline.search_query)
     require_api_key(config)
-    relevance_prompt = assembly.read_prompt(config.prompts.relevance)
-    extraction_prompt = assembly.read_prompt(config.prompts.extraction)
+    parts = assembly.load_project_parts(config)
 
     ctx = click.get_current_context()
     with run_logger(config.logging.level, config.logging.file, stderr_console()) as log:
         try:
-            processed = asyncio.run(
-                execute(config, log, relevance_prompt, extraction_prompt, 0 if rescan else start_index)
-            )
+            processed = asyncio.run(execute(config, log, parts, 0 if rescan else start_index))
         except PipelineAborted as aborted:
             log.error(f"Run aborted: {describe_abort(aborted)}")
             ctx.exit(ExitCode.FAILURE)
@@ -96,7 +94,9 @@ def apply_overrides(
     log_file: Path | None,
 ) -> CliConfig:
     requested = {"max_records": limit, "page_size": page_size, "max_workers": workers}
-    pipeline = config.pipeline.model_copy(update={name: value for name, value in requested.items() if value is not None})
+    pipeline = config.pipeline.model_copy(
+        update={name: value for name, value in requested.items() if value is not None}
+    )
     logging_config = config.logging if log_file is None else config.logging.model_copy(update={"file": log_file})
     return config.model_copy(update={"pipeline": pipeline, "logging": logging_config})
 
@@ -108,28 +108,30 @@ def describe_count(count: int) -> str:
 async def execute(
     config: CliConfig,
     log: logging.Logger,
-    relevance_prompt: str,
-    extraction_prompt: str,
+    parts: assembly.ProjectParts,
     start_index: int | None,
 ) -> int | None:
     http_client = assembly.build_http_client(config)
     llm_client = assembly.build_llm_client(config)
     state_manager = assembly.build_state_manager(config)
-    pipeline = assembly.build_pipeline(
-        config, log, http_client, llm_client, state_manager, relevance_prompt, extraction_prompt
-    )
+    pipeline = assembly.build_pipeline(config, log, http_client, llm_client, state_manager, parts)
     log.info(
         f"Starting run for {config.pipeline.search_query!r}, up to {describe_count(config.pipeline.max_records)}"
     )
-    async with pipeline:
-        return await shutdown.run_until_interrupted(
-            pipeline.run(
-                query=config.pipeline.search_query,
-                page_size=config.pipeline.page_size,
-                total_limit=config.pipeline.max_records,
-                sleep_between=config.pipeline.sleep_between,
-                start_index=start_index,
-            ),
-            ShutdownSignal(logger=log.warning),
-            state_manager,
-        )
+    try:
+        async with pipeline:
+            return await shutdown.run_until_interrupted(
+                pipeline.run(
+                    query=config.pipeline.search_query,
+                    page_size=config.pipeline.page_size,
+                    total_limit=config.pipeline.max_records,
+                    sleep_between=config.pipeline.sleep_between,
+                    start_index=start_index,
+                ),
+                ShutdownSignal(logger=log.warning),
+                state_manager,
+            )
+    finally:
+        summary = describe_usage(llm_client.usage, config.llm)
+        if summary is not None:
+            log.info(summary)

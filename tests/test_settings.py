@@ -20,6 +20,11 @@ def test_relative_paths_resolve_from_the_config_folder(make_project):
     assert config.logging.file == root / "logs" / "run.log"
 
 
+def test_project_root_is_the_config_folder(make_project):
+    config_path = make_project()
+    assert load_cli_config(config_path).project_root == config_path.resolve().parent
+
+
 def test_absolute_paths_are_kept_and_logging_can_be_disabled(make_project, tmp_path):
     destination = tmp_path / "elsewhere" / "planets.csv"
     config = load_cli_config(make_project({"export": {"destination": str(destination)}, "logging": {"file": None}}))
@@ -69,6 +74,9 @@ def test_validation_errors_name_each_key_without_echoing_values(make_project, mo
         ({"export": None}, "export"),
         ({"state": {"backend": "postgres"}}, "backend"),
         ({"logging": {"level": "LOUD"}}, "level"),
+        ({"llm": {"input_cost_per_million": 0.15}}, "or neither"),
+        ({"export": {"normalizer": "rules.py"}}, "export.normalizer"),
+        ({"export": {"validators": ["no reference"]}}, "export.validators"),
     ],
 )
 def test_invalid_configs_are_configuration_errors(make_project, updates, message):

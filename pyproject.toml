@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sci-etl-cli"
-version = "0.1.0"
+version = "0.2.0"
 description = "Command-line tool for running sci-etl-core extraction pipelines from a YAML file."
 readme = "README.md"
 license = "MIT"
@@ -29,7 +29,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "sci-etl-core[async,llm,pdf]>=0.1.2,<0.2",
+    "sci-etl-core[async,llm,pdf]>=0.2.0,<0.3",
     "click>=8.2",
     "rich>=13.7",
     "pydantic>=2",
@@ -38,6 +38,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-asyncio", "pytest-mock", "pytest-cov"]
+lint = ["ruff", "mypy", "types-PyYAML"]
 
 [project.scripts]
 sci-etl = "sci_etl_cli.app:main"
@@ -64,3 +65,20 @@ asyncio_default_fixture_loop_scope = "function"
 fail_under = 100
 show_missing = true
 exclude_also = ["if TYPE_CHECKING:"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+
+[tool.mypy]
+files = ["src/sci_etl_cli"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+module = ["pdfplumber.*", "tiktoken.*"]
+ignore_missing_imports = true

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import click
 from sci_etl_core.parsers.reference_trimmer import trim_after_references
 
-from sci_etl_cli.errors import CliFailure, ExitCode
+from sci_etl_cli.errors import CliFailure
 
 if TYPE_CHECKING:
     from sci_etl_core.parsers.base import Parser
@@ -41,7 +41,7 @@ def parse_command(file: Path, file_format: str, trim_references: bool) -> None:
     if trim_references:
         text = trim_after_references(text) or text
     if not text.strip():
-        raise CliFailure(f"No text could be extracted from {file}", ExitCode.FAILURE)
+        raise CliFailure(f"No text could be extracted from {file}")
     click.echo(text)
 
 
