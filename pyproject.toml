@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sci-etl-cli"
+version = "0.1.0"
+description = "Command-line tool for running sci-etl-core extraction pipelines from a YAML file."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+keywords = ["etl", "cli", "arxiv", "llm", "text-mining", "scientific-literature"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Text Processing",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "sci-etl-core[async,llm,pdf]>=0.1.2,<0.2",
+    "click>=8.2",
+    "rich>=13.7",
+    "pydantic>=2",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "pytest-mock", "pytest-cov"]
+
+[project.scripts]
+sci-etl = "sci_etl_cli.app:main"
+
+[project.urls]
+Homepage = "https://github.com/xueromll/sci-etl-cli"
+Repository = "https://github.com/xueromll/sci-etl-cli"
+Issues = "https://github.com/xueromll/sci-etl-cli/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sci_etl_cli = ["py.typed", "templates/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+exclude_also = ["if TYPE_CHECKING:"]

@@ -1,0 +1,40 @@
+llm:
+  base_url: https://api.openai.com/v1
+  model: gpt-4o-mini
+  timeout: 120
+  api_key_env: LLM_API_KEY
+
+http:
+  user_agent: "sci-etl-project/0.1 (mailto:you@example.org)"
+  max_retries: 4
+  backoff_factor: 5.0
+  timeout: 25
+
+pipeline:
+  search_query: 'cat:astro-ph.EP AND abs:"hot Jupiter"'
+  max_records: 20
+  page_size: 100
+  search_delay: 3.0
+  sleep_between: 5.0
+  max_workers: 4
+
+prompts:
+  relevance: prompts/relevance.txt
+  extraction: prompts/extraction.txt
+  result_key: planets
+
+export:
+  destination: out/planets.csv
+  key_column: planet_name
+  value_columns: [orbital_period_days, mass_jupiter, radius_jupiter]
+  numeric_clip:
+    mass_jupiter: [0.0, 80.0]
+
+state:
+  backend: file
+  processed_ids: state/processed_ids.txt
+  metadata: state/metadata.json
+
+logging:
+  file: logs/run.log
+  level: INFO
