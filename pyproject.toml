@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sci-etl-cli"
-version = "0.2.0"
+version = "0.2.1"
 description = "Command-line tool for running sci-etl-core extraction pipelines from a YAML file."
 readme = "README.md"
 license = "MIT"
