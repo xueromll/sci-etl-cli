@@ -11,3 +11,5 @@ dist/
 .env.*
 !.env.example
 .venv/
+
+code.txt
