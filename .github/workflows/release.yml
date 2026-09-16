@@ -124,3 +124,19 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
           fi
+
+  docs:
+    name: Rebuild the documentation site
+    needs: github-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ask sci-etl-core to republish the CLI pages
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::DOCS_DISPATCH_TOKEN is not set, so the documentation site was not rebuilt. Run the Docs workflow in sci-etl-core by hand."
+            exit 0
+          fi
+          gh api repos/xueromll/sci-etl-core/dispatches -f event_type=cli-docs-updated

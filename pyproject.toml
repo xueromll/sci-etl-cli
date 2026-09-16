@@ -29,7 +29,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "sci-etl-core[async,llm,pdf]>=0.2.0,<0.3",
+    "sci-etl-core[async,llm,pdf]>=0.2.0,<0.4",
     "click>=8.2",
     "rich>=13.7",
     "pydantic>=2",
@@ -39,12 +39,18 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest", "pytest-asyncio", "pytest-mock", "pytest-cov"]
 lint = ["ruff", "mypy", "types-PyYAML"]
+docs = [
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.7,<10",
+    "mkdocs-click>=0.9,<1",
+]
 
 [project.scripts]
 sci-etl = "sci_etl_cli.app:main"
 
 [project.urls]
 Homepage = "https://github.com/xueromll/sci-etl-cli"
+Documentation = "https://xueromll.github.io/sci-etl-core/latest/cli/"
 Repository = "https://github.com/xueromll/sci-etl-cli"
 Issues = "https://github.com/xueromll/sci-etl-cli/issues"
 

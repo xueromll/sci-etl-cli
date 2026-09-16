@@ -1,0 +1,45 @@
+site_name: sci-etl CLI
+site_description: Run sci-etl-core extraction pipelines from a YAML file.
+site_url: https://xueromll.github.io/sci-etl-core/latest/cli/
+repo_url: https://github.com/xueromll/sci-etl-cli
+repo_name: xueromll/sci-etl-cli
+edit_uri: ""
+
+strict: true
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.indexes
+    - navigation.sections
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - mkdocs-click
+
+nav:
+  - index.md
+  - Quick start: quick-start.md
+  - Commands: commands.md
+  - Config file: config-file.md
+  - Plug-ins: plugins.md
+  - Exit codes: exit-codes.md

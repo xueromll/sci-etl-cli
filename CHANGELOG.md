@@ -5,6 +5,12 @@ All notable changes to sci-etl-cli are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). Until 1.0, a minor release may
 change behavior; each such change is listed under **Changed**.
 
+## [Unreleased]
+
+### Changed
+
+- Accepts sci-etl-core 0.3 as well as 0.2.
+
 ## [0.2.0] - Unreleased
 
 ### Added
@@ -32,5 +38,6 @@ change behavior; each such change is listed under **Changed**.
 First release: the `init`, `validate`, `search`, `run`, `status`, and `parse`
 commands.
 
+[Unreleased]: https://github.com/xueromll/sci-etl-cli/compare/v0.2.1...HEAD
 [0.2.0]: https://github.com/xueromll/sci-etl-cli/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/xueromll/sci-etl-cli/releases/tag/v0.1.0
