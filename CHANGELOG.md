@@ -11,7 +11,14 @@ change behavior; each such change is listed under **Changed**.
 
 - Accepts sci-etl-core 0.3 as well as 0.2.
 
-## [0.2.0] - Unreleased
+## [0.2.1] - 2026-09-14
+
+### Changed
+
+- Republishes 0.2.0 unchanged under a new version number, because PyPI does
+  not accept a second upload of a published version.
+
+## [0.2.0] - 2026-09-14
 
 ### Added
 
@@ -39,5 +46,6 @@ First release: the `init`, `validate`, `search`, `run`, `status`, and `parse`
 commands.
 
 [Unreleased]: https://github.com/xueromll/sci-etl-cli/compare/v0.2.1...HEAD
-[0.2.0]: https://github.com/xueromll/sci-etl-cli/compare/v0.1.0...HEAD
+[0.2.1]: https://github.com/xueromll/sci-etl-cli/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/xueromll/sci-etl-cli/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/xueromll/sci-etl-cli/releases/tag/v0.1.0
