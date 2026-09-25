@@ -28,7 +28,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "sci-etl-core[async,llm,pdf]>=0.5,<0.6",
+    "sci-etl-core[async,llm,pdf]>=0.5.0.dev0,<0.6",
     "click>=8.2",
     "rich>=13.7",
     "pydantic>=2",
