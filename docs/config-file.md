@@ -21,11 +21,11 @@ http:
 
 pipeline:
   search_query: 'cat:astro-ph.EP AND abs:"hot Jupiter"'
-  max_records: 20
+  total_limit: 20
   page_size: 100
   search_delay: 3.0
   sleep_between: 5.0
-  max_workers: 4
+  max_concurrency: 4
 
 prompts:
   relevance: prompts/relevance.txt
@@ -60,11 +60,11 @@ logging:
 | `http.user_agent` | `sci-etl-core/0.1` | Sent to arXiv. Include a contact address. |
 | `http.max_retries`, `http.backoff_factor` | `3`, `2.0` | Attempts per arXiv request, waiting `backoff_factor ** attempt` seconds between them, or as long as arXiv's `Retry-After` header asks when that is longer (up to 60 seconds). |
 | `pipeline.search_query` | required | An [arXiv API query](https://info.arxiv.org/help/api/user-manual.html#query_details). |
-| `pipeline.max_records` | `100` | Relevant records to process per run. `run --limit` overrides it. |
+| `pipeline.total_limit` | `100` | Relevant records to process per run. `run --limit` overrides it. Named `max_records` before sci-etl-core 0.4. |
 | `pipeline.page_size` | `100` | Listing entries per request. |
 | `pipeline.search_delay` | `3.0` | Seconds to wait before each listing request, as arXiv asks. |
 | `pipeline.sleep_between` | `5.0` | Seconds to wait between listing pages. |
-| `pipeline.max_workers` | `6` | Records processed at once. |
+| `pipeline.max_concurrency` | `6` | Records processed at once. `run --workers` overrides it. Named `max_workers` before sci-etl-core 0.4. |
 | `prompts.relevance` | `prompts/relevance.txt` | System prompt that must ask for `{"relevant": true}` or `{"relevant": false}` in JSON. |
 | `prompts.extraction` | `prompts/extraction.txt` | System prompt that must ask for a JSON object with a list under `result_key`. |
 | `prompts.result_key` | `items` | Key holding the entity list in the extraction reply. |

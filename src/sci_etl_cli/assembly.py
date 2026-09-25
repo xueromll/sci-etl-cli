@@ -184,7 +184,7 @@ def build_pipeline(
         exporter=build_exporter(config, parts.normalizer),
         state_manager=state_manager,
         destination=str(config.export.destination),
-        max_concurrency=config.pipeline.max_workers,
+        max_concurrency=config.pipeline.max_concurrency,
         logger=log.warning,
         closeables=[http_client, llm_client, state_manager],
     )

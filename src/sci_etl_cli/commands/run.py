@@ -21,7 +21,7 @@ from sci_etl_cli.usage import describe_usage
 @click.option(
     "--limit",
     type=click.IntRange(min=0),
-    help="Stop after this many relevant records. Overrides pipeline.max_records.",
+    help="Stop after this many relevant records. Overrides pipeline.total_limit.",
 )
 @click.option(
     "--page-size",
@@ -31,7 +31,7 @@ from sci_etl_cli.usage import describe_usage
 @click.option(
     "--workers",
     type=click.IntRange(min=1),
-    help="Records processed at once. Overrides pipeline.max_workers.",
+    help="Records processed at once. Overrides pipeline.max_concurrency.",
 )
 @click.option(
     "--rescan",
@@ -93,7 +93,7 @@ def apply_overrides(
     workers: int | None,
     log_file: Path | None,
 ) -> CliConfig:
-    requested = {"max_records": limit, "page_size": page_size, "max_workers": workers}
+    requested = {"total_limit": limit, "page_size": page_size, "max_concurrency": workers}
     pipeline = config.pipeline.model_copy(
         update={name: value for name, value in requested.items() if value is not None}
     )
@@ -116,7 +116,7 @@ async def execute(
     state_manager = assembly.build_state_manager(config)
     pipeline = assembly.build_pipeline(config, log, http_client, llm_client, state_manager, parts)
     log.info(
-        f"Starting run for {config.pipeline.search_query!r}, up to {describe_count(config.pipeline.max_records)}"
+        f"Starting run for {config.pipeline.search_query!r}, up to {describe_count(config.pipeline.total_limit)}"
     )
     try:
         async with pipeline:
@@ -124,7 +124,7 @@ async def execute(
                 pipeline.run(
                     query=config.pipeline.search_query,
                     page_size=config.pipeline.page_size,
-                    total_limit=config.pipeline.max_records,
+                    total_limit=config.pipeline.total_limit,
                     sleep_between=config.pipeline.sleep_between,
                     start_index=start_index,
                 ),

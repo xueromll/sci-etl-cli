@@ -44,6 +44,18 @@ def test_api_key_comes_from_the_named_variable_in_the_dotenv_beside_the_config(m
     assert config.llm.api_key_env == "SCI_ETL_CLI_TEST_KEY"
 
 
+def test_pipeline_keys_renamed_in_core_0_4_still_load(make_project):
+    config_path = make_project()
+    text = config_path.read_text(encoding="utf-8")
+    config_path.write_text(
+        text.replace("total_limit:", "max_records:").replace("max_concurrency:", "max_workers:"), encoding="utf-8"
+    )
+    with pytest.warns(DeprecationWarning, match=r"pipeline\.max_(records|workers) is deprecated"):
+        config = load_cli_config(config_path)
+    assert config.pipeline.total_limit == 20
+    assert config.pipeline.max_concurrency == 4
+
+
 def test_default_variable_is_used_without_an_llm_section(make_project):
     config = load_cli_config(make_project({"llm": None}))
     assert config.llm.api_key_env == "LLM_API_KEY"
@@ -53,10 +65,10 @@ def test_default_variable_is_used_without_an_llm_section(make_project):
 def test_validation_errors_name_each_key_without_echoing_values(make_project, monkeypatch):
     monkeypatch.setenv("LLM_API_KEY", "sk-live-do-not-print")
     with pytest.raises(ConfigurationError) as error:
-        load_cli_config(make_project({"export": None, "pipeline": {"max_workers": 0}}))
+        load_cli_config(make_project({"export": None, "pipeline": {"max_concurrency": 0}}))
     message = str(error.value)
     assert "sk-live-do-not-print" not in message
-    assert "pipeline.max_workers: Input should be greater than or equal to 1" in message
+    assert "pipeline.max_concurrency: Input should be greater than or equal to 1" in message
     assert "export: Field required" in message
     assert message.startswith("Invalid configuration in ")
 
@@ -66,7 +78,7 @@ def test_validation_errors_name_each_key_without_echoing_values(make_project, mo
     [
         ({"exports": {"destination": "planets.csv"}}, "exports"),
         ({"pipeline": {"max_worker": 2}}, "max_worker"),
-        ({"pipeline": {"max_workers": 0}}, "max_workers"),
+        ({"pipeline": {"max_concurrency": 0}}, "max_concurrency"),
         ({"export": {"key_column": "mass_jupiter"}}, "must not also be a value column"),
         ({"export": {"value_columns": ["mass_jupiter", "mass_jupiter"]}}, "must not repeat"),
         ({"export": {"numeric_clip": {"density": [0, 1]}}}, "not value columns: density"),

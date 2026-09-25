@@ -9,7 +9,11 @@ change behavior; each such change is listed under **Changed**.
 
 ### Changed
 
-- Accepts sci-etl-core 0.3 as well as 0.2.
+- Requires sci-etl-core 0.4. The config keys `pipeline.max_records` and
+  `pipeline.max_workers` are renamed `pipeline.total_limit` and
+  `pipeline.max_concurrency`, and `init` writes the new names. Configs that
+  still use the old names load with a `DeprecationWarning` until
+  sci-etl-core 0.5 removes them.
 
 ## [0.2.1] - 2026-09-14
 

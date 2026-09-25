@@ -12,11 +12,11 @@ http:
 
 pipeline:
   search_query: 'cat:astro-ph.EP AND abs:"hot Jupiter"'
-  max_records: 20
+  total_limit: 20
   page_size: 100
   search_delay: 3.0
   sleep_between: 5.0
-  max_workers: 4
+  max_concurrency: 4
 
 prompts:
   relevance: prompts/relevance.txt
