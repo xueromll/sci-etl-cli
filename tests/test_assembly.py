@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from sci_etl_core import AsyncOpenAICompatibleClient, AsyncSqliteStateManager, PipelineMetadata
+from sci_etl_core import AsyncArxivExtractor, AsyncOpenAICompatibleClient, AsyncSqliteStateManager, PipelineMetadata
 from sci_etl_core.exceptions import ConfigurationError
-from sci_etl_core.extractors.async_base import AsyncExtractor
-from sci_etl_core.models import RawRecord
+from sci_etl_core.models import ListingPage, RawRecord
 
 from sci_etl_cli.assembly import (
     build_http_client,
@@ -92,7 +91,7 @@ def test_state_manager_matches_the_backend(make_project, backend, manager_type):
 async def test_reading_missing_sqlite_state_creates_nothing(make_project):
     config = load_cli_config(make_project({"state": {"backend": "sqlite"}}))
     processed_ids, metadata = await read_state(config)
-    assert (processed_ids, metadata.last_start_index) == (set(), 0)
+    assert (processed_ids, metadata.cursor) == (set(), None)
     assert not config.state.database.exists()
 
 
@@ -101,26 +100,29 @@ async def test_reading_existing_sqlite_state_releases_the_database(make_project)
     config = load_cli_config(make_project({"state": {"backend": "sqlite"}}))
     writer = AsyncSqliteStateManager(config.state.database)
     await writer.mark_processed("2609.00001v1")
-    await writer.save_metadata(PipelineMetadata(last_start_index=100))
+    await writer.save_metadata(PipelineMetadata(cursor="100"))
     await writer.aclose()
     processed_ids, metadata = await read_state(config)
     assert processed_ids == {"2609.00001v1"}
-    assert metadata.last_start_index == 100
+    assert metadata.cursor == "100"
     config.state.database.unlink()
 
 
 @pytest.mark.asyncio
 async def test_listing_reporter_logs_pages_and_delegates(mocker):
-    record = RawRecord("2609.00001v1", "WASP-12 b", "Tidal decay")
-    inner = mocker.Mock(spec=AsyncExtractor)
-    inner.search = mocker.AsyncMock(return_value=b"<feed/>")
-    inner.parse_listing = mocker.Mock(side_effect=[([record], 3), ([], 0)])
+    record = RawRecord(record_id="2609.00001v1", title="WASP-12 b", abstract="Tidal decay")
+    page = ListingPage(records=(record,), entries=3, next_cursor="103")
+    empty = ListingPage(records=(), entries=0, next_cursor=None)
+    inner = mocker.Mock(spec=AsyncArxivExtractor)
+    inner.fetch_page = mocker.AsyncMock(side_effect=[page, empty])
+    inner.cursor_for_offset = mocker.Mock(side_effect=str)
     inner.fetch_full_text = mocker.AsyncMock(return_value="full text")
     messages: list[str] = []
     reporter = ListingReporter(inner, messages.append)
 
-    assert await reporter.search("abs:WASP-12", 3, 100) == b"<feed/>"
-    assert reporter.parse_listing(b"<feed/>", set()) == ([record], 3)
-    assert reporter.parse_listing(b"<feed/>", set()) == ([], 0)
+    assert await reporter.fetch_page("abs:WASP-12", "100", 3) is page
+    assert await reporter.fetch_page("abs:WASP-12", "103", 3) is empty
+    assert reporter.cursor_for_offset(7) == "7"
     assert await reporter.fetch_full_text(record) == "full text"
-    assert messages == ["Listing page at offset 100: 3 entries, 1 to process"]
+    assert messages == ["Listing page at offset 100: 3 entries"]
+    inner.fetch_page.assert_any_await("abs:WASP-12", "100", 3)

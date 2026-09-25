@@ -9,11 +9,17 @@ change behavior; each such change is listed under **Changed**.
 
 ### Changed
 
-- Requires sci-etl-core 0.4. The config keys `pipeline.max_records` and
-  `pipeline.max_workers` are renamed `pipeline.total_limit` and
-  `pipeline.max_concurrency`, and `init` writes the new names. Configs that
-  still use the old names load with a `DeprecationWarning` until
-  sci-etl-core 0.5 removes them.
+- Requires sci-etl-core 0.5 and Python 3.11. The config keys
+  `pipeline.max_records` and `pipeline.max_workers` are renamed
+  `pipeline.total_limit` and `pipeline.max_concurrency`, and `init` writes the
+  new names. A config that still uses an old name, or any key the
+  sci-etl-core sections do not declare, now fails validation and the error
+  names the key.
+- `run` skips a paper that failed in three runs, on pages where other papers
+  were processed, as sci-etl-core 0.5 quarantines it; the next runs log it
+  once each.
+- The per-page log line reads `Listing page at offset N: M entries` and no
+  longer counts the entries to process; the run's progress lines report them.
 
 ## [0.2.1] - 2026-09-14
 

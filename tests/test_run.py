@@ -36,7 +36,7 @@ def test_run_exports_entities_saves_state_and_logs(run_cli, make_project, arxiv,
     assert processed == {"2609.00001v1", "2609.00002v1"}
     assert "Processed 2 relevant records" in result.stderr
     log_text = (root / "logs" / "run.log").read_text(encoding="utf-8")
-    assert "Listing page at offset 0: 2 entries, 2 to process" in log_text
+    assert "Listing page at offset 0: 2 entries" in log_text
     assert "Processed 2 relevant records" in log_text
     assert client.closed
 

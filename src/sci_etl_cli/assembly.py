@@ -11,12 +11,12 @@ if TYPE_CHECKING:
 
     import httpx
     from sci_etl_core import (
+        AsyncArxivExtractor,
         AsyncEntityExtractor,
         AsyncETLPipeline,
         AsyncExporter,
-        AsyncExtractor,
-        AsyncLLMClient,
         AsyncOpenAICompatibleClient,
+        AsyncSqliteStateManager,
         AsyncStateManager,
         PipelineMetadata,
     )
@@ -115,7 +115,7 @@ def build_llm_client(config: CliConfig) -> AsyncOpenAICompatibleClient:
 
 def build_extractor(
     config: CliConfig, http_client: httpx.AsyncClient, log: Callable[[str], None]
-) -> AsyncExtractor:
+) -> AsyncArxivExtractor:
     from sci_etl_core import AsyncArxivExtractor
     from sci_etl_core.parsers import LatexTarballParser, PdfPlumberParser
 
@@ -157,11 +157,16 @@ def build_pipeline(
     config: CliConfig,
     log: logging.Logger,
     http_client: httpx.AsyncClient,
-    llm_client: AsyncLLMClient,
+    llm_client: AsyncOpenAICompatibleClient,
     state_manager: AsyncStateManager,
     parts: ProjectParts,
 ) -> AsyncETLPipeline:
-    from sci_etl_core import AsyncETLPipeline, AsyncLLMEntityExtractor, AsyncLLMRelevanceFilter
+    from sci_etl_core import (
+        AsyncETLPipeline,
+        AsyncLLMEntityExtractor,
+        AsyncLLMRelevanceFilter,
+        AsyncSqliteStateManager,
+    )
 
     from sci_etl_cli.reporting import ListingReporter
 
@@ -186,8 +191,14 @@ def build_pipeline(
         destination=str(config.export.destination),
         max_concurrency=config.pipeline.max_concurrency,
         logger=log.warning,
-        closeables=[http_client, llm_client, state_manager],
+        closeables=[http_client, llm_client, *_closeable_state(state_manager, AsyncSqliteStateManager)],
     )
+
+
+def _closeable_state(
+    state_manager: AsyncStateManager, closeable: type[AsyncSqliteStateManager]
+) -> list[AsyncSqliteStateManager]:
+    return [state_manager] if isinstance(state_manager, closeable) else []
 
 
 async def read_state(config: CliConfig) -> tuple[set[str], PipelineMetadata]:

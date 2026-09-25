@@ -44,16 +44,16 @@ def test_api_key_comes_from_the_named_variable_in_the_dotenv_beside_the_config(m
     assert config.llm.api_key_env == "SCI_ETL_CLI_TEST_KEY"
 
 
-def test_pipeline_keys_renamed_in_core_0_4_still_load(make_project):
+def test_pipeline_keys_renamed_in_core_0_4_are_rejected_and_named(make_project):
     config_path = make_project()
     text = config_path.read_text(encoding="utf-8")
     config_path.write_text(
         text.replace("total_limit:", "max_records:").replace("max_concurrency:", "max_workers:"), encoding="utf-8"
     )
-    with pytest.warns(DeprecationWarning, match=r"pipeline\.max_(records|workers) is deprecated"):
-        config = load_cli_config(config_path)
-    assert config.pipeline.total_limit == 20
-    assert config.pipeline.max_concurrency == 4
+    with pytest.raises(ConfigurationError) as error:
+        load_cli_config(config_path)
+    assert "pipeline.max_records: Extra inputs are not permitted" in str(error.value)
+    assert "pipeline.max_workers: Extra inputs are not permitted" in str(error.value)
 
 
 def test_default_variable_is_used_without_an_llm_section(make_project):

@@ -133,8 +133,7 @@ async def _arxiv_check(config: CliConfig) -> Check:
     http_client = assembly.build_http_client(config)
     try:
         extractor = assembly.build_extractor(config, http_client, discard)
-        raw_listing = await extractor.search(config.pipeline.search_query, 1, 0)
-        _records, entries = extractor.parse_listing(raw_listing or b"", set())
+        entries = (await extractor.fetch_page(config.pipeline.search_query, None, 1)).entries
     except SciEtlError as exc:
         return Check("arXiv", False, str(exc), ExitCode.FAILURE)
     finally:

@@ -18,7 +18,7 @@ $ sci-etl status hot-jupiters/config.yaml
 
 ## Installation
 
-Python 3.10 or newer is required.
+Python 3.11 or newer is required.
 
 ```bash
 pip install sci-etl-cli

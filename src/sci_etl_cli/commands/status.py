@@ -31,7 +31,7 @@ def status_command(config_path: Path, as_json: bool) -> None:
         "backend": config.state.backend,
         "state": [str(path) for path in state_paths(config)],
         "processed": len(processed_ids),
-        "saved_offset": metadata.last_start_index,
+        "saved_offset": saved_offset(metadata.cursor),
         "last_run": metadata.last_run_at,
         "export": str(config.export.destination),
         "export_rows": count_rows(config.export.destination),
@@ -74,3 +74,8 @@ def count_rows(path: Path) -> int | None:
             return max(sum(1 for _row in csv.reader(handle)) - 1, 0)
     except (OSError, UnicodeDecodeError, csv.Error) as exc:
         raise CliFailure(f"Export file could not be read: {path}: {exc}") from exc
+
+
+def saved_offset(cursor: str | None) -> int:
+    """Return the arXiv listing offset a saved cursor names; ``None`` is the first page."""
+    return int(cursor) if cursor is not None and cursor.isdecimal() else 0

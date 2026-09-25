@@ -70,8 +70,8 @@ async def fetch_page(config: CliConfig, query: str, limit: int, start_index: int
     http_client = assembly.build_http_client(config)
     try:
         extractor = assembly.build_extractor(config, http_client, discard)
-        raw_listing = await extractor.search(query, limit, start_index)
-        records, _entries = extractor.parse_listing(raw_listing or b"", set())
+        cursor = extractor.cursor_for_offset(start_index) if start_index else None
+        records = (await extractor.fetch_page(query, cursor, limit)).records
     finally:
         await http_client.aclose()
     return [
