@@ -20,10 +20,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
 
@@ -51,7 +51,7 @@ jobs:
         run: python -m twine check --strict dist/*
 
       - name: Upload the distribution
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: dist
           path: dist/
@@ -70,13 +70,13 @@ jobs:
       id-token: write
     steps:
       - name: Download the distribution
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: dist
           path: dist/
 
       - name: Publish to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
 
@@ -93,13 +93,44 @@ jobs:
       id-token: write
     steps:
       - name: Download the distribution
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: dist
           path: dist/
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+
+  verify-published:
+    name: Run the published release with the latest sci-etl-core it allows
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install the published release in a clean environment
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          python -m venv "$RUNNER_TEMP/published"
+          for attempt in 1 2 3 4 5 6; do
+            if "$RUNNER_TEMP/published/bin/python" -m pip install --no-cache-dir "sci-etl-cli==$version"; then
+              break
+            fi
+            echo "sci-etl-cli $version is not on PyPI yet (attempt $attempt); waiting"
+            sleep 30
+          done
+          "$RUNNER_TEMP/published/bin/python" -m pip freeze
+
+      - name: Create a project and validate it
+        run: |
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/published/bin/sci-etl" --version
+          "$RUNNER_TEMP/published/bin/sci-etl" init starter
+          LLM_API_KEY=placeholder "$RUNNER_TEMP/published/bin/sci-etl" validate starter/config.yaml
 
   github-release:
     name: Create the GitHub release
@@ -110,7 +141,7 @@ jobs:
       contents: write
     steps:
       - name: Download the distribution
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: dist
           path: dist/
@@ -127,7 +158,7 @@ jobs:
 
   docs:
     name: Rebuild the documentation site
-    needs: github-release
+    needs: [github-release, verify-published]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

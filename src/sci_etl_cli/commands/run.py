@@ -5,10 +5,10 @@ import logging
 from pathlib import Path
 
 import click
-from sci_etl_core.exceptions import PipelineAborted
+from sci_etl_core.exceptions import PipelineAborted, PipelineInterrupted
 from sci_etl_core.signals import ShutdownSignal
 
-from sci_etl_cli import assembly, shutdown
+from sci_etl_cli import assembly
 from sci_etl_cli.errors import ExitCode, describe_abort
 from sci_etl_cli.options import config_argument, require_api_key, require_query
 from sci_etl_cli.output import run_logger, stderr_console
@@ -60,14 +60,18 @@ def run_command(
     """Run the pipeline for CONFIG, resuming from its saved state.
 
     Searches arXiv, asks the LLM which papers are relevant, extracts entities
-    from their full text and upserts them into the export CSV. Press Ctrl+C
-    once to stop after saving state; the next run retries unfinished records.
+    from their full text, and writes them to the export CSV, one row per entity
+    tagged with its paper's arXiv id. Press Ctrl+C
+    once to let the papers in progress finish and save state; the next run
+    continues with the rest. Press it again to stop at once.
     """
     if rescan and start_index is not None:
         raise click.UsageError("Use either --rescan or --start-index, not both.")
     config = apply_overrides(
         load_cli_config(config_path), limit=limit, page_size=page_size, workers=workers, log_file=log_file
     )
+    if config.pipeline.newest_first and (rescan or start_index is not None):
+        raise click.UsageError("--rescan and --start-index cannot be combined with pipeline.newest_first.")
     require_query(config.pipeline.search_query)
     require_api_key(config)
     parts = assembly.load_project_parts(config)
@@ -76,12 +80,15 @@ def run_command(
     with run_logger(config.logging.level, config.logging.file, stderr_console()) as log:
         try:
             processed = asyncio.run(execute(config, log, parts, 0 if rescan else start_index))
+        except PipelineInterrupted as interrupted:
+            log.warning(
+                f"Interrupted after {describe_count(interrupted.partial_count)}; state was saved. "
+                "Run the same command again to continue."
+            )
+            ctx.exit(ExitCode.INTERRUPTED)
         except PipelineAborted as aborted:
             log.error(f"Run aborted: {describe_abort(aborted)}")
             ctx.exit(ExitCode.FAILURE)
-        if processed is None:
-            log.warning("Interrupted; state was saved. Run the same command again to continue.")
-            ctx.exit(ExitCode.INTERRUPTED)
         log.info(f"Processed {describe_count(processed)} into {config.export.destination}")
 
 
@@ -110,27 +117,30 @@ async def execute(
     log: logging.Logger,
     parts: assembly.ProjectParts,
     start_index: int | None,
-) -> int | None:
+) -> int:
+    """Run the pipeline with every ``run()`` argument taken from ``pipeline``.
+
+    Raises:
+        PipelineInterrupted: Ctrl+C stopped the run after the records in
+            flight finished; state is flushed.
+        PipelineAborted: The run failed; state is flushed.
+    """
     http_client = assembly.build_http_client(config)
     llm_client = assembly.build_llm_client(config)
+    llm_cache = assembly.build_llm_cache(config)
     state_manager = assembly.build_state_manager(config)
-    pipeline = assembly.build_pipeline(config, log, http_client, llm_client, state_manager, parts)
+    pipeline = assembly.build_pipeline(
+        config, log.info, http_client, llm_client, llm_cache, state_manager, parts, ShutdownSignal()
+    )
+    arguments = config.pipeline.run_arguments()
+    if start_index is not None:
+        arguments["start_index"] = start_index
     log.info(
         f"Starting run for {config.pipeline.search_query!r}, up to {describe_count(config.pipeline.total_limit)}"
     )
     try:
         async with pipeline:
-            return await shutdown.run_until_interrupted(
-                pipeline.run(
-                    query=config.pipeline.search_query,
-                    page_size=config.pipeline.page_size,
-                    total_limit=config.pipeline.total_limit,
-                    sleep_between=config.pipeline.sleep_between,
-                    start_index=start_index,
-                ),
-                ShutdownSignal(logger=log.warning),
-                state_manager,
-            )
+            return await pipeline.run(**arguments)
     finally:
         summary = describe_usage(llm_client.usage, config.llm)
         if summary is not None:

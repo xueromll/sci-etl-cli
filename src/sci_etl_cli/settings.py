@@ -28,6 +28,7 @@ class CliLLMConfig(LLMConfig):
     api_key_env: str = Field(default=DEFAULT_API_KEY_ENV, min_length=1)
     input_cost_per_million: float | None = Field(default=None, ge=0)
     output_cost_per_million: float | None = Field(default=None, ge=0)
+    cache: Path | None = Path("state/llm_cache.db")
 
     @model_validator(mode="after")
     def _check_prices(self) -> "CliLLMConfig":
@@ -47,6 +48,12 @@ class CliRateLimitConfig(RateLimitConfig):
 class CliPipelineConfig(PipelineConfig):
     model_config = _STRICT
 
+    max_attempts: int | None = Field(default=3, ge=1)
+
+    def run_arguments(self) -> dict[str, Any]:
+        """Return the keyword arguments for ``run()``: the library's, plus ``max_attempts``."""
+        return {**super().run_arguments(), "max_attempts": self.max_attempts}
+
 
 class PromptsConfig(BaseModel):
     model_config = _STRICT
@@ -62,9 +69,7 @@ class ExportConfig(BaseModel):
     destination: Path = Path("out/results.csv")
     key_column: str = Field(default="name", min_length=1)
     value_columns: list[str] = Field(min_length=1)
-    numeric_clip: dict[str, tuple[float, float]] = Field(default_factory=dict)
     escape_formulas: bool = True
-    normalizer: ImportReference | None = None
     validators: list[ImportReference] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -73,12 +78,9 @@ class ExportConfig(BaseModel):
             raise ValueError(f"key_column {self.key_column!r} must not also be a value column")
         if len(set(self.value_columns)) != len(self.value_columns):
             raise ValueError("value_columns must not repeat a column")
-        unknown = sorted(set(self.numeric_clip) - set(self.value_columns))
-        if unknown:
-            raise ValueError(f"numeric_clip names columns that are not value columns: {', '.join(unknown)}")
-        for column, (low, high) in self.numeric_clip.items():
-            if low > high:
-                raise ValueError(f"numeric_clip for {column!r} has a lower bound above its upper bound")
+        reserved = sorted({"record_id", "extra"} & {self.key_column, *self.value_columns})
+        if reserved:
+            raise ValueError(f"record_id and extra are written by the exporter; rename {', '.join(reserved)}")
         return self
 
 
@@ -146,6 +148,8 @@ def anchor_paths(config: CliConfig, root: Path) -> CliConfig:
         expanded = path.expanduser()
         return expanded if expanded.is_absolute() else root / expanded
 
+    llm_cache = config.llm.cache
+    llm = config.llm.model_copy(update={"cache": None if llm_cache is None else anchored(llm_cache)})
     prompts = config.prompts.model_copy(
         update={"relevance": anchored(config.prompts.relevance), "extraction": anchored(config.prompts.extraction)}
     )
@@ -160,7 +164,7 @@ def anchor_paths(config: CliConfig, root: Path) -> CliConfig:
     log_file = config.logging.file
     logging_config = config.logging.model_copy(update={"file": None if log_file is None else anchored(log_file)})
     anchored_config = config.model_copy(
-        update={"prompts": prompts, "export": export, "state": state, "logging": logging_config}
+        update={"llm": llm, "prompts": prompts, "export": export, "state": state, "logging": logging_config}
     )
     anchored_config._project_root = root
     return anchored_config

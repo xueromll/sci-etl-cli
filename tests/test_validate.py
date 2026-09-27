@@ -51,12 +51,12 @@ def test_missing_package_takes_precedence_with_exit_code_four(run_cli, make_proj
 def test_configured_plugins_are_loaded(run_cli, make_project, write_plugins):
     module = "validate_rules"
     config_path = make_project(
-        {"export": {"normalizer": f"{module}:DesignationNormalizer", "validators": [f"{module}:short_period_planets"]}}
+        {"export": {"validators": [f"{module}:NamedPlanets", f"{module}:short_period_planets"]}}
     )
     write_plugins(config_path.parent, module)
     result = run_cli("validate", str(config_path))
     assert result.exit_code == 0, result.stdout
-    assert "validate_rules:DesignationNormalizer, validate_rules:short_period_planets" in result.stdout
+    assert "validate_rules:NamedPlanets, validate_rules:short_period_planets" in result.stdout
 
 
 def test_broken_plugin_fails_validation(run_cli, make_project):

@@ -15,14 +15,26 @@ piped.
 
 ## Running pipelines
 
-**Stopping a run.** Press Ctrl+C once: records in flight are cancelled and left
-unmarked, state is saved, and the command exits with 130. The next run retries
-those records. A second Ctrl+C exits immediately.
+**Stopping a run.** Press Ctrl+C once: no new paper starts, the papers in
+flight finish and are saved, state is saved, and the command exits with 130.
+The next run continues with the rest. A second Ctrl+C exits immediately.
 
 **Resuming.** A run starts at the listing offset saved by the previous one.
 arXiv lists the newest submissions first, so new papers push older ones to
-higher offsets; `--rescan` starts again at offset 0 and skips processed papers
-by id, which costs listing requests but no LLM calls.
+higher offsets. Set `pipeline.newest_first: true` to have every run look for
+new submissions at the head of the listing first and then continue from the
+saved offset. Or pass `--rescan` to start once at offset 0; processed papers
+are skipped by id, which costs listing requests but no LLM calls. `--rescan`
+and `--start-index` cannot be combined with `newest_first`.
+
+**Papers that keep failing.** A paper that failed in `pipeline.max_attempts`
+runs (3 by default) is skipped and logged once per run. Set it to `null` to
+retry such papers forever.
+
+**Caching.** LLM answers are kept in `llm.cache` (`state/llm_cache.db` by
+default), so a paper retried after a crash or a rescan costs no tokens for the
+questions already answered. Answers the library rejects are not kept. Set
+`llm.cache: null` to turn the cache off.
 
 **Throttling.** When arXiv or the LLM provider answers `429` with a
 `Retry-After` header, the request waits as long as it asks, up to 60 seconds,

@@ -4,12 +4,15 @@ import pytest
 from sci_etl_core import AsyncArxivExtractor, AsyncOpenAICompatibleClient, AsyncSqliteStateManager, PipelineMetadata
 from sci_etl_core.exceptions import ConfigurationError
 from sci_etl_core.models import ListingPage, RawRecord
+from sci_etl_core.rate_limiter import AioLimiterRateLimiter, SemaphoreRateLimiter
 
 from sci_etl_cli.assembly import (
+    build_extractor,
     build_http_client,
+    build_llm_cache,
     build_llm_client,
-    build_normalizer,
     build_state_manager,
+    build_validator,
     build_validators,
     read_prompt,
     read_state,
@@ -44,19 +47,22 @@ def test_blank_prompt_is_reported(tmp_path):
 
 def test_plugins_of_the_wrong_type_are_rejected(make_project, write_plugins):
     module = "typed_rules"
-    config = load_cli_config(make_project({"export": {"normalizer": f"{module}:short_period_planets"}}))
+    config = load_cli_config(make_project({"export": {"validators": [f"{module}:NotAValidator"]}}))
     write_plugins(config.project_root, module)
-    with pytest.raises(ConfigurationError, match="produced NumericRangeValidator, not a KeyNormalizer"):
-        build_normalizer(config)
-    swapped = config.model_copy(
-        update={
-            "export": config.export.model_copy(
-                update={"normalizer": None, "validators": [f"{module}:DesignationNormalizer"]}
-            )
-        }
+    with pytest.raises(ConfigurationError, match="produced NotAValidator, not a RecordValidator"):
+        build_validators(config)
+
+
+def test_validators_are_combined_into_one_that_reports_every_reason(make_project, write_plugins):
+    module = "combined_rules"
+    config = load_cli_config(
+        make_project({"export": {"validators": [f"{module}:NamedPlanets", f"{module}:short_period_planets"]}})
     )
-    with pytest.raises(ConfigurationError, match="produced DesignationNormalizer, not a RecordValidator"):
-        build_validators(swapped)
+    write_plugins(config.project_root, module)
+    validator = build_validator(tuple(build_validators(config)))
+    result = validator.validate({"planet_name": "", "orbital_period_days": 40.0})
+    assert [violation.code for violation in result.violations] == ["rejected", "out-of-range"]
+    assert build_validator(()) is None
 
 
 @pytest.mark.asyncio
@@ -67,6 +73,32 @@ async def test_http_client_sends_the_configured_user_agent(make_project):
         assert client.headers["User-Agent"] == config.http.user_agent
     finally:
         await client.aclose()
+
+
+@pytest.mark.parametrize(
+    ("full_text", "limiter_type"),
+    [({"max_concurrency": 2}, SemaphoreRateLimiter), ({"max_rate": 1.0, "time_period": 3.0}, AioLimiterRateLimiter)],
+)
+@pytest.mark.asyncio
+async def test_the_extractor_takes_its_retries_delay_and_rate_limiter_from_the_config(
+    make_project, full_text, limiter_type
+):
+    config = load_cli_config(
+        make_project({"full_text": full_text, "http": {"max_retries": 5}, "pipeline": {"search_delay": 1.5}})
+    )
+    client = build_http_client(config)
+    try:
+        extractor = build_extractor(config, client)
+        assert isinstance(extractor._fetcher._rate_limiter, limiter_type)
+        assert (extractor._fetcher._max_retries, extractor._sleep_before_search) == (5, 1.5)
+    finally:
+        await client.aclose()
+
+
+def test_the_llm_cache_opens_at_the_configured_path(make_project):
+    config = load_cli_config(make_project())
+    assert build_llm_cache(config)._path == config.llm.cache
+    assert build_llm_cache(config.model_copy(update={"llm": config.llm.model_copy(update={"cache": None})})) is None
 
 
 @pytest.mark.asyncio

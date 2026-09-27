@@ -5,7 +5,7 @@ import logging
 
 from rich.console import Console
 
-from sci_etl_cli.output import LOGGER_NAME, run_logger
+from sci_etl_cli.output import CORE_LOGGER_NAME, LOGGER_NAME, run_logger
 
 
 def test_run_logger_writes_the_file_and_releases_it(tmp_path):
@@ -28,3 +28,21 @@ def test_run_logger_without_a_file_only_uses_the_console():
         log.warning("Record processing failed")
         assert not any(isinstance(handler, logging.FileHandler) for handler in log.handlers)
     assert "Record processing failed" in console.file.getvalue()
+
+
+def test_sci_etl_core_lines_reach_the_same_handlers_and_the_loggers_are_restored(tmp_path):
+    log_file = tmp_path / "run.log"
+    console = Console(file=io.StringIO(), width=200)
+    core = logging.getLogger(f"{CORE_LOGGER_NAME}.pipeline_async")
+    before = (logging.getLogger(CORE_LOGGER_NAME).level, logging.getLogger(CORE_LOGGER_NAME).propagate)
+    with run_logger("INFO", log_file, console):
+        core.warning("Record processing failed: LLMError('outage')")
+        core.debug("hidden at INFO")
+    written = log_file.read_text(encoding="utf-8")
+    assert "[WARNING] Record processing failed: LLMError('outage')" in written
+    assert "hidden at INFO" not in written
+    assert "Record processing failed" in console.file.getvalue()
+    core_logger = logging.getLogger(CORE_LOGGER_NAME)
+    assert (core_logger.level, core_logger.propagate) == before
+    assert core_logger.handlers == []
+    log_file.unlink()

@@ -25,15 +25,18 @@ _ENTRY = (
     "<summary>{abstract}</summary>"
     '<link href="http://arxiv.org/abs/{record_id}" rel="alternate" type="text/html"/></entry>'
 )
-PLUGIN_SOURCE = '''from sci_etl_core.processors import DefaultKeyNormalizer, KeyNormalizer, NumericRangeValidator
+PLUGIN_SOURCE = '''from sci_etl_core.processors import NumericRangeValidator, RecordValidator
 
 NOT_CALLABLE = 42
 
 
-class DesignationNormalizer(KeyNormalizer):
-    def normalize(self, raw_value):
-        key = DefaultKeyNormalizer().normalize(raw_value)
-        return "wasp" + key[len("superwasp"):] if key.startswith("superwasp") else key
+class NamedPlanets(RecordValidator):
+    def is_valid(self, record):
+        return bool(str(record.get("planet_name") or "").strip())
+
+
+class NotAValidator:
+    pass
 
 
 def short_period_planets():
@@ -52,11 +55,13 @@ class ScriptedLLM(AsyncLLMClient):
         entities: list[dict[str, Any]] | None = None,
         error: Exception | None = None,
         usage: TokenUsage | None = None,
+        on_extraction: Callable[[], None] | None = None,
     ) -> None:
         self.relevant = relevant
         self.entities = entities if entities is not None else []
         self.error = error
         self.token_usage = usage
+        self.on_extraction = on_extraction
         self.requests: list[str] = []
         self.closed = False
 
@@ -70,6 +75,8 @@ class ScriptedLLM(AsyncLLMClient):
             raise self.error
         if '"relevant"' in system_prompt:
             return {"relevant": self.relevant}
+        if self.on_extraction is not None:
+            self.on_extraction()
         return {"planets": self.entities}
 
     async def aclose(self) -> None:

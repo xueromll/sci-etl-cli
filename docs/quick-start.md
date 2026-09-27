@@ -22,5 +22,5 @@ prompts, and the `export` columns in the [config file](config-file.md). The
 extraction prompt has to ask for JSON containing `result_key`, `key_column`,
 and every value column; `validate` checks this.
 
-Rules that don't fit in a config file, such as which names refer to the same
-entity, plug in as [Python code](plugins.md).
+Rules that don't fit in a config file, such as which values are physically
+possible, plug in as [Python code](plugins.md).

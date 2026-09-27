@@ -5,7 +5,7 @@ import os
 import pytest
 from sci_etl_core.exceptions import ConfigurationError
 
-from sci_etl_cli.settings import load_cli_config
+from sci_etl_cli.settings import CliConfig, load_cli_config
 
 
 def test_relative_paths_resolve_from_the_config_folder(make_project):
@@ -18,6 +18,7 @@ def test_relative_paths_resolve_from_the_config_folder(make_project):
     assert config.state.processed_ids == root / "state" / "processed_ids.txt"
     assert config.state.database == root / "state" / "state.db"
     assert config.logging.file == root / "logs" / "run.log"
+    assert config.llm.cache == root / "state" / "llm_cache.db"
 
 
 def test_project_root_is_the_config_folder(make_project):
@@ -30,6 +31,45 @@ def test_absolute_paths_are_kept_and_logging_can_be_disabled(make_project, tmp_p
     config = load_cli_config(make_project({"export": {"destination": str(destination)}, "logging": {"file": None}}))
     assert config.export.destination == destination
     assert config.logging.file is None
+
+
+def test_the_llm_cache_can_be_disabled(make_project):
+    assert load_cli_config(make_project({"llm": {"cache": None}})).llm.cache is None
+
+
+def test_run_arguments_add_max_attempts_to_the_librarys(make_project):
+    config = load_cli_config(make_project({"pipeline": {"max_attempts": None}}))
+    assert config.pipeline.run_arguments() == {
+        "query": config.pipeline.search_query,
+        "page_size": 100,
+        "total_limit": 20,
+        "sleep_between": 0,
+        "newest_first": False,
+        "max_attempts": None,
+    }
+
+
+WIRED_FIELDS = {
+    "llm": {"api_key", "base_url", "model", "timeout", "structured_output", "api_key_env", "input_cost_per_million",
+            "output_cost_per_million", "cache"},
+    "http": {"user_agent", "timeout", "max_retries", "backoff_factor"},
+    "full_text": {"max_concurrency", "max_rate", "time_period"},
+    "pipeline": {"search_query", "total_limit", "page_size", "sleep_between", "newest_first", "max_attempts",
+                 "max_concurrency", "search_delay"},
+}
+
+
+@pytest.mark.parametrize("section", sorted(WIRED_FIELDS))
+def test_every_key_of_a_library_section_is_wired_into_the_run(section):
+    """A key sci-etl-core adds to a section fails here until the CLI passes it on.
+
+    ``llm`` feeds ``AsyncOpenAICompatibleClient.from_config`` and the usage
+    summary, ``http`` feeds ``HttpConfig.build_client`` and
+    ``AsyncArxivExtractor.from_config``, ``full_text`` feeds the extractor's
+    rate limiter, and ``pipeline`` feeds ``run_arguments``,
+    ``AsyncETLPipeline.from_config``, and the extractor's ``search_delay``.
+    """
+    assert set(CliConfig.model_fields[section].annotation.model_fields) == WIRED_FIELDS[section]
 
 
 def test_api_key_comes_from_the_named_variable_in_the_dotenv_beside_the_config(make_project, monkeypatch):
@@ -81,13 +121,14 @@ def test_validation_errors_name_each_key_without_echoing_values(make_project, mo
         ({"pipeline": {"max_concurrency": 0}}, "max_concurrency"),
         ({"export": {"key_column": "mass_jupiter"}}, "must not also be a value column"),
         ({"export": {"value_columns": ["mass_jupiter", "mass_jupiter"]}}, "must not repeat"),
-        ({"export": {"numeric_clip": {"density": [0, 1]}}}, "not value columns: density"),
-        ({"export": {"numeric_clip": {"mass_jupiter": [80, 0]}}}, "lower bound above"),
+        ({"export": {"numeric_clip": {"mass_jupiter": [0, 80]}}}, "export.numeric_clip"),
+        ({"export": {"key_column": "record_id"}}, "record_id and extra are written by the exporter"),
+        ({"export": {"value_columns": ["mass_jupiter", "extra"]}}, "rename extra"),
         ({"export": None}, "export"),
         ({"state": {"backend": "postgres"}}, "backend"),
         ({"logging": {"level": "LOUD"}}, "level"),
         ({"llm": {"input_cost_per_million": 0.15}}, "or neither"),
-        ({"export": {"normalizer": "rules.py"}}, "export.normalizer"),
+        ({"export": {"normalizer": "rules:Normalizer"}}, "export.normalizer"),
         ({"export": {"validators": ["no reference"]}}, "export.validators"),
     ],
 )

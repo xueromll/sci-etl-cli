@@ -3,8 +3,8 @@
 `sci-etl` runs [sci-etl-core](https://github.com/xueromll/sci-etl-core)
 extraction pipelines from a single YAML file, with no wiring code. It searches
 arXiv, asks an LLM which papers are relevant, extracts structured entities from
-their full text, and upserts them into a CSV. Runs resume where the last one
-stopped.
+their full text, and writes them to a CSV, one row per entity tagged with the
+paper it came from. Runs resume where the last one stopped.
 
 **Documentation: https://xueromll.github.io/sci-etl-core/latest/cli/**
 
@@ -24,8 +24,8 @@ Python 3.11 or newer is required.
 pip install sci-etl-cli
 ```
 
-This installs the `sci-etl` command along with `sci-etl-core[async,llm,pdf]`,
-`click`, and `rich`. `pipx install sci-etl-cli` keeps it in an environment of
+This installs the `sci-etl` command along with
+`sci-etl-core[config,async,arxiv,html,llm,pdf]`, `click`, and `rich`. `pipx install sci-etl-cli` keeps it in an environment of
 its own.
 
 ## Quick start
@@ -63,7 +63,7 @@ mypy
 ```
 
 To work against a local sci-etl-core checkout, install it first with
-`pip install -e "../sci-etl-core[async,llm,pdf]"`.
+`pip install -e "../sci-etl-core[config,async,arxiv,html,llm,pdf]"`.
 
 The suite runs offline: arXiv is served by an `httpx.MockTransport` and the LLM
 by a scripted client, so `run` is exercised end to end against real CSV and

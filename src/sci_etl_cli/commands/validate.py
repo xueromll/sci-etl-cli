@@ -13,12 +13,14 @@ from sci_etl_core.exceptions import ConfigurationError, SciEtlError
 from sci_etl_cli import assembly
 from sci_etl_cli.errors import ExitCode
 from sci_etl_cli.options import api_key_hint, config_argument
-from sci_etl_cli.output import discard, stdout_console
+from sci_etl_cli.output import stdout_console
 from sci_etl_cli.settings import CliConfig, load_cli_config
 
 _REQUIRED_PACKAGES: tuple[tuple[str, str], ...] = (
+    ("yaml", "config"),
     ("httpx", "async"),
-    ("aiofiles", "async"),
+    ("bs4", "arxiv"),
+    ("lxml", "arxiv"),
     ("openai", "llm"),
     ("pdfplumber", "pdf"),
 )
@@ -102,12 +104,10 @@ def _prompt_check(name: str, path: Path, required_terms: tuple[str, ...]) -> Che
 
 
 def _plugin_check(config: CliConfig) -> Check:
-    normalizer = [config.export.normalizer] if config.export.normalizer else []
-    references = [*normalizer, *config.export.validators]
+    references = list(config.export.validators)
     if not references:
         return Check("plug-ins", True, "none configured")
     try:
-        assembly.build_normalizer(config)
         assembly.build_validators(config)
     except ConfigurationError as exc:
         return Check("plug-ins", False, str(exc))
@@ -132,7 +132,7 @@ def _package_check() -> Check:
 async def _arxiv_check(config: CliConfig) -> Check:
     http_client = assembly.build_http_client(config)
     try:
-        extractor = assembly.build_extractor(config, http_client, discard)
+        extractor = assembly.build_extractor(config, http_client)
         entries = (await extractor.fetch_page(config.pipeline.search_query, None, 1)).entries
     except SciEtlError as exc:
         return Check("arXiv", False, str(exc), ExitCode.FAILURE)

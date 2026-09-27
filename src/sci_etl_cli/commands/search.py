@@ -10,7 +10,7 @@ from rich.table import Table
 
 from sci_etl_cli import assembly
 from sci_etl_cli.options import config_argument, require_query
-from sci_etl_cli.output import discard, print_json, stdout_console
+from sci_etl_cli.output import print_json, stdout_console
 from sci_etl_cli.settings import CliConfig, load_cli_config
 
 _ARXIV_MAX_RESULTS = 2000
@@ -69,7 +69,7 @@ async def fetch_page(config: CliConfig, query: str, limit: int, start_index: int
     processed_ids, _metadata = await assembly.read_state(config)
     http_client = assembly.build_http_client(config)
     try:
-        extractor = assembly.build_extractor(config, http_client, discard)
+        extractor = assembly.build_extractor(config, http_client)
         cursor = extractor.cursor_for_offset(start_index) if start_index else None
         records = (await extractor.fetch_page(query, cursor, limit)).records
     finally:

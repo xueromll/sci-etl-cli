@@ -3,8 +3,8 @@
 `sci-etl` runs [sci-etl-core](https://xueromll.github.io/sci-etl-core/latest/)
 extraction pipelines from a single YAML file, with no wiring code. It searches
 arXiv, asks an LLM which papers are relevant, extracts structured entities from
-their full text, and upserts them into a CSV. Runs resume where the last one
-stopped.
+their full text, and writes them to a CSV, one row per entity tagged with the
+paper it came from. Runs resume where the last one stopped.
 
 ```text
 $ sci-etl init hot-jupiters
@@ -22,8 +22,8 @@ Python 3.11 or newer is required.
 pip install sci-etl-cli
 ```
 
-This installs the `sci-etl` command along with `sci-etl-core[async,llm,pdf]`,
-`click`, and `rich`. `pipx install sci-etl-cli` keeps it in an environment of
+This installs the `sci-etl` command along with
+`sci-etl-core[config,async,arxiv,html,llm,pdf]`, `click`, and `rich`. `pipx install sci-etl-cli` keeps it in an environment of
 its own. `sci-etl --version` prints the CLI and library versions.
 
 ## Compatibility
@@ -35,7 +35,8 @@ installs a matching one:
 |-------------|--------------|
 | 0.1.x | 0.1.2 or newer 0.1 releases |
 | 0.2.x | 0.2 |
-| next release | 0.4 |
+| 0.3.x | 0.5.1 or newer 0.5 releases |
+| 0.4.x | 0.6 |
 
 ## Where to go next
 

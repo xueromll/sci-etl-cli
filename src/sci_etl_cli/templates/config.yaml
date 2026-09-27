@@ -10,6 +10,9 @@ http:
   backoff_factor: 5.0
   timeout: 25
 
+full_text:
+  max_concurrency: 2
+
 pipeline:
   search_query: 'cat:astro-ph.EP AND abs:"hot Jupiter"'
   total_limit: 20
@@ -27,8 +30,6 @@ export:
   destination: out/planets.csv
   key_column: planet_name
   value_columns: [orbital_period_days, mass_jupiter, radius_jupiter]
-  numeric_clip:
-    mass_jupiter: [0.0, 80.0]
 
 state:
   backend: file
