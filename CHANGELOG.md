@@ -19,6 +19,37 @@ change behavior; each such change is listed under **Changed**.
   the same, and the command names the run to follow it with. The command is
   named after the protocol method rather than `rerun`, because it changes the
   state and runs nothing itself.
+- **`source` config section** selects the literature source with
+  `source.kind` and holds that source's options. Each kind is its own model
+  with unknown keys rejected, so `validate` names a key of another source, such
+  as `source.pubmed.year`. Without the section a project searches arXiv, so
+  existing configs run unchanged.
+- **PubMed** (`source.kind: pubmed`) runs sci-etl-core's `AsyncPubMedExtractor`
+  through NCBI's E-utilities, with `tool`, `email`, `sort`, and an API key, and
+  reads full text from PubMed Central as JATS XML. `record_id` is the PMID.
+- **Semantic Scholar** (`source.kind: semantic_scholar`) runs
+  `AsyncSemanticScholarExtractor` with `year`, `fields_of_study`, and an API
+  key, and reads full text from the open-access PDF. `record_id` is the paper
+  id.
+- **OpenAlex** (`source.kind: openalex`) runs `AsyncOpenAlexExtractor` with
+  `filter`, `sort`, `mailto`, and an API key, and reads full text from the best
+  open-access PDF. `record_id` is the work id. It pages by opaque cursor, so
+  `run` and `search` refuse `pipeline.newest_first` and `--start-index` above 0
+  with exit code 2 before any request; `--rescan` starts from the first page.
+- **`source.api_key_env`** names the variable the source's API key is read
+  from, `SOURCE_API_KEY` by default, from the environment or the `.env` file
+  beside the config, as `llm.api_key_env` does for the LLM; `init` writes it
+  to `.env.example`.
+- **`init --source pubmed|semantic_scholar|openalex`** writes a starter for
+  that source with a query in its syntax and prompts that collect the arms of
+  metformin trials; the default starter still searches arXiv for hot Jupiters.
+- **`validate` checks the packages the configured source needs** instead of
+  arXiv's set, and names the sci-etl-core extras that install the missing
+  ones, such as `pip install "sci-etl-core[xml]"` for PubMed. A new `source`
+  check names the source and whether its key is set, and fails
+  `pipeline.newest_first` with a source that pages by cursor.
+- **`search` labels its id column by source**: `arXiv id`, `PMID`, `S2 paper
+  id`, or `OpenAlex work id`; `--json` keeps `record_id`.
 - `llm.structured_output` asks the endpoint to enforce a JSON schema.
 
 ### Changed
@@ -44,6 +75,12 @@ change behavior; each such change is listed under **Changed**.
   putting the config's folder first on the import path, so a file there can no
   longer replace a module that other code imports. A plug-in module named like
   a standard-library module is rejected with an error naming it.
+- **The install pulls the `xml` extra** of sci-etl-core
+  (`sci-etl-core[config,async,arxiv,html,llm,pdf,xml]`), so PubMed works out of
+  the box; it adds no package, since `arxiv` already installed lxml.
+- **The per-page log line of a source that pages by cursor** reads
+  `Listing page N: M entries`, numbered from 1; sources that page by offset
+  keep `Listing page at offset N: M entries`.
 - Requires sci-etl-core 0.7, with the upper bound `<0.8`. Nothing in 0.7 is
   deprecated, and the suite runs with `-W error::DeprecationWarning`.
 
