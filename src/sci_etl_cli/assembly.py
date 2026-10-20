@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
 from sci_etl_core.exceptions import ConfigurationError
+
+from sci_etl_cli.errors import CliFailure
 
 if TYPE_CHECKING:
     import httpx
@@ -206,12 +209,63 @@ async def read_state(config: CliConfig) -> tuple[set[str], PipelineMetadata]:
     """Load processed ids and metadata without creating state that does not exist yet."""
     from sci_etl_core.models import PipelineMetadata
 
-    if config.state.backend == "sqlite" and not config.state.database.exists():
+    if _state_is_absent(config):
         return set(), PipelineMetadata()
     manager = build_state_manager(config)
     try:
         return await manager.load_processed_ids(), await manager.load_metadata()
     finally:
-        aclose = getattr(manager, "aclose", None)
-        if aclose is not None:
-            await aclose()
+        await _release_state(manager)
+
+
+@dataclass(frozen=True, slots=True)
+class ForgetReport:
+    """Which requested ids the state tracked and so forgot, and which it did not, each in request order."""
+
+    forgotten: tuple[str, ...]
+    untracked: tuple[str, ...]
+
+    @property
+    def requested(self) -> int:
+        return len(self.forgotten) + len(self.untracked)
+
+
+async def forget_records(config: CliConfig, record_ids: Sequence[str]) -> ForgetReport:
+    """Clear the processed mark and failed attempts of every tracked id in ``record_ids``.
+
+    Calls the state manager's ``forget``, which the ``Forgetting`` protocol
+    describes, so the next run that lists the records again processes them
+    again. An id the state neither processed nor failed is reported as
+    untracked, a repeated id counts once, and state that does not exist yet
+    is not created.
+
+    Raises:
+        CliFailure: The configured state manager cannot forget records.
+    """
+    from sci_etl_core import Forgetting
+
+    requested = tuple(dict.fromkeys(record_ids))
+    if _state_is_absent(config):
+        return ForgetReport(forgotten=(), untracked=requested)
+    manager = build_state_manager(config)
+    try:
+        if not isinstance(manager, Forgetting):
+            raise CliFailure(f"The {config.state.backend} state backend cannot forget records")
+        tracked = await manager.load_processed_ids() | (await manager.failure_counts()).keys()
+        forgotten = tuple(record_id for record_id in requested if record_id in tracked)
+        await manager.forget(forgotten)
+    finally:
+        await _release_state(manager)
+    return ForgetReport(
+        forgotten=forgotten, untracked=tuple(record_id for record_id in requested if record_id not in tracked)
+    )
+
+
+def _state_is_absent(config: CliConfig) -> bool:
+    return config.state.backend == "sqlite" and not config.state.database.exists()
+
+
+async def _release_state(manager: AsyncStateManager) -> None:
+    aclose = getattr(manager, "aclose", None)
+    if aclose is not None:
+        await aclose()

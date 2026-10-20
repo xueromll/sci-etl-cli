@@ -7,11 +7,12 @@
 | `sci-etl search CONFIG` | Shows one page of arXiv results, each marked `new` or `processed`. | arXiv | nothing |
 | `sci-etl run CONFIG` | Runs the pipeline, resuming from saved state, and logs token usage at the end. | arXiv and the LLM | export CSV, state, log |
 | `sci-etl status CONFIG` | Shows processed records, the saved offset, the last run time, and export rows. | none | nothing |
+| `sci-etl forget CONFIG RECORD_ID...` | Clears the processed mark and failed attempts of each record, so the next `run --rescan` processes it again. | none | state |
 | `sci-etl parse FILE` | Prints the text a bundled parser extracts from a PDF, arXiv e-print, or HTML file. | none | nothing |
 
 Every command accepts `--help`. Logs and errors go to stderr; `search --json`,
-`status --json`, and `parse` print their results to stdout, so they can be
-piped.
+`status --json`, `forget --json`, and `parse` print their results to stdout,
+so they can be piped.
 
 ## Running pipelines
 
@@ -26,6 +27,17 @@ new submissions at the head of the listing first and then continue from the
 saved offset. Or pass `--rescan` to start once at offset 0; processed papers
 are skipped by id, which costs listing requests but no LLM calls. `--rescan`
 and `--start-index` cannot be combined with `newest_first`.
+
+**Reprocessing papers.** `sci-etl forget CONFIG RECORD_ID...` clears the
+processed mark and failed attempts of the arXiv ids you name, for example after
+a prompt or model change, and reports each id as `forgotten` or `not tracked`.
+Run it between runs, because a run reads the processed ids when it starts. The
+saved offset is kept, so follow it with `run --rescan`, which starts at offset
+0 and skips every other processed paper by id; the LLM answers of a forgotten
+paper are still served from `llm.cache` unless you delete it or change the
+prompts. A forgotten paper's rows stay in the export CSV until it is processed
+again, which replaces them. With `pipeline.newest_first` set, turn it off for
+that one run, since a rescan cannot be combined with it.
 
 **Papers that keep failing.** A paper that failed in `pipeline.max_attempts`
 runs (3 by default) is skipped and logged once per run. Set it to `null` to

@@ -4,7 +4,8 @@
 extraction pipelines from a single YAML file, with no wiring code. It searches
 arXiv, asks an LLM which papers are relevant, extracts structured entities from
 their full text, and writes them to a CSV, one row per entity tagged with the
-paper it came from. Runs resume where the last one stopped.
+paper it came from. Runs resume where the last one stopped, and `forget` hands
+chosen papers back for another pass.
 
 **Documentation: https://xueromll.github.io/sci-etl-core/latest/cli/**
 

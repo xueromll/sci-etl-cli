@@ -4,7 +4,8 @@
 extraction pipelines from a single YAML file, with no wiring code. It searches
 arXiv, asks an LLM which papers are relevant, extracts structured entities from
 their full text, and writes them to a CSV, one row per entity tagged with the
-paper it came from. Runs resume where the last one stopped.
+paper it came from. Runs resume where the last one stopped, and `forget` hands
+chosen papers back for another pass.
 
 ```text
 $ sci-etl init hot-jupiters
@@ -36,7 +37,7 @@ installs a matching one:
 | 0.1.x | 0.1.2 or newer 0.1 releases |
 | 0.2.x | 0.2 |
 | 0.3.x | 0.5.1 or newer 0.5 releases |
-| 0.4.x | 0.6 |
+| 0.4.x | 0.7 |
 
 ## Where to go next
 
