@@ -11,10 +11,13 @@ from sci_etl_core.exceptions import ConfigurationError, PipelineAborted, SciEtlE
 _EXTRA_FOR_PACKAGE: dict[str, str] = {
     "aiofiles": "async",
     "aiolimiter": "async",
+    "bs4": "arxiv",
     "httpx": "async",
+    "lxml": "xml",
     "openai": "llm",
     "pdfplumber": "pdf",
     "tiktoken": "llm",
+    "yaml": "config",
 }
 
 

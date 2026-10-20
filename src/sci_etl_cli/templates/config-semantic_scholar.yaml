@@ -1,0 +1,48 @@
+llm:
+  base_url: https://api.openai.com/v1
+  model: gpt-4o-mini
+  timeout: 120
+  api_key_env: LLM_API_KEY
+
+http:
+  user_agent: "sci-etl-project/0.1 (mailto:you@example.org)"
+  max_retries: 4
+  backoff_factor: 5.0
+  timeout: 25
+
+# Without an API key, requests share Semantic Scholar's public rate limit.
+full_text:
+  max_rate: 1
+  time_period: 1.0
+
+pipeline:
+  search_query: metformin type 2 diabetes randomized controlled trial
+  total_limit: 20
+  page_size: 100
+  sleep_between: 1.0
+  max_concurrency: 2
+
+source:
+  kind: semantic_scholar
+  api_key_env: SOURCE_API_KEY
+  year: "2015-"
+  fields_of_study: Medicine
+
+prompts:
+  relevance: prompts/relevance.txt
+  extraction: prompts/extraction.txt
+  result_key: trials
+
+export:
+  destination: out/trials.csv
+  key_column: intervention
+  value_columns: [participants, duration_weeks, hba1c_change_percent]
+
+state:
+  backend: file
+  processed_ids: state/processed_ids.txt
+  metadata: state/metadata.json
+
+logging:
+  file: logs/run.log
+  level: INFO

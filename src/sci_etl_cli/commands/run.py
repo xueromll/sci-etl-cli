@@ -10,7 +10,13 @@ from sci_etl_core.signals import ShutdownSignal
 
 from sci_etl_cli import assembly
 from sci_etl_cli.errors import ExitCode, describe_abort
-from sci_etl_cli.options import config_argument, require_api_key, require_query
+from sci_etl_cli.options import (
+    config_argument,
+    require_api_key,
+    require_offset_paging_for_newest_first,
+    require_offset_paging_for_start_index,
+    require_query,
+)
 from sci_etl_cli.output import run_logger, stderr_console
 from sci_etl_cli.settings import CliConfig, load_cli_config
 from sci_etl_cli.usage import describe_usage
@@ -59,11 +65,11 @@ def run_command(
 ) -> None:
     """Run the pipeline for CONFIG, resuming from its saved state.
 
-    Searches arXiv, asks the LLM which papers are relevant, extracts entities
-    from their full text, and writes them to the export CSV, one row per entity
-    tagged with its paper's arXiv id. Press Ctrl+C
-    once to let the papers in progress finish and save state; the next run
-    continues with the rest. Press it again to stop at once.
+    Searches the configured source, asks the LLM which papers are relevant,
+    extracts entities from their full text, and writes them to the export CSV,
+    one row per entity tagged with its paper's id. Press Ctrl+C once to let
+    the papers in progress finish and save state; the next run continues with
+    the rest. Press it again to stop at once.
     """
     if rescan and start_index is not None:
         raise click.UsageError("Use either --rescan or --start-index, not both.")
@@ -72,6 +78,8 @@ def run_command(
     )
     if config.pipeline.newest_first and (rescan or start_index is not None):
         raise click.UsageError("--rescan and --start-index cannot be combined with pipeline.newest_first.")
+    require_offset_paging_for_newest_first(config)
+    require_offset_paging_for_start_index(config, start_index)
     require_query(config.pipeline.search_query)
     require_api_key(config)
     parts = assembly.load_project_parts(config)

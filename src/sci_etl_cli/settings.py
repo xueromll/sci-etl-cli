@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, ClassVar, Literal
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, SecretStr, StringConstraints, model_validator
 from sci_etl_core.config import (
     BaseAppConfig,
     HttpConfig,
@@ -17,7 +18,10 @@ from sci_etl_core.config import (
 )
 
 DEFAULT_API_KEY_ENV = "LLM_API_KEY"
+DEFAULT_SOURCE_API_KEY_ENV = "SOURCE_API_KEY"
 _STRICT = ConfigDict(extra="forbid")
+
+SourceKind = Literal["arxiv", "pubmed", "semantic_scholar", "openalex"]
 
 ImportReference = Annotated[str, StringConstraints(pattern=r"^[A-Za-z_][\w.]*:[A-Za-z_][\w.]*$")]
 
@@ -53,6 +57,71 @@ class CliPipelineConfig(PipelineConfig):
     def run_arguments(self) -> dict[str, Any]:
         """Return the keyword arguments for ``run()``: the library's, plus ``max_attempts``."""
         return {**super().run_arguments(), "max_attempts": self.max_attempts}
+
+
+class ArxivSourceConfig(BaseModel):
+    """arXiv's Atom API, paged by offset; it takes no option of its own."""
+
+    model_config = _STRICT
+
+    label: ClassVar[str] = "arXiv"
+    id_label: ClassVar[str] = "arXiv id"
+    pages_by_offset: ClassVar[bool] = True
+
+    kind: Literal["arxiv"] = "arxiv"
+
+
+class KeyedSourceConfig(BaseModel):
+    """A source that accepts an API key, read from the variable ``api_key_env`` names."""
+
+    model_config = _STRICT
+
+    api_key_env: str = Field(default=DEFAULT_SOURCE_API_KEY_ENV, min_length=1)
+    api_key: SecretStr = SecretStr("")
+
+
+class PubMedSourceConfig(KeyedSourceConfig):
+    """PubMed through NCBI's E-utilities, paged by offset; full text from PubMed Central as JATS."""
+
+    label: ClassVar[str] = "PubMed"
+    id_label: ClassVar[str] = "PMID"
+    pages_by_offset: ClassVar[bool] = True
+
+    kind: Literal["pubmed"]
+    tool: str | None = None
+    email: str | None = None
+    sort: str | None = "pub_date"
+
+
+class SemanticScholarSourceConfig(KeyedSourceConfig):
+    """Semantic Scholar's relevance search, paged by offset; full text from the open-access PDF."""
+
+    label: ClassVar[str] = "Semantic Scholar"
+    id_label: ClassVar[str] = "S2 paper id"
+    pages_by_offset: ClassVar[bool] = True
+
+    kind: Literal["semantic_scholar"]
+    year: str | None = None
+    fields_of_study: str | None = None
+
+
+class OpenAlexSourceConfig(KeyedSourceConfig):
+    """OpenAlex works, paged by opaque cursor; full text from the best open-access PDF."""
+
+    label: ClassVar[str] = "OpenAlex"
+    id_label: ClassVar[str] = "OpenAlex work id"
+    pages_by_offset: ClassVar[bool] = False
+
+    kind: Literal["openalex"]
+    filter: str | None = None
+    sort: str | None = "publication_date:desc"
+    mailto: str | None = None
+
+
+SourceConfig = Annotated[
+    ArxivSourceConfig | PubMedSourceConfig | SemanticScholarSourceConfig | OpenAlexSourceConfig,
+    Field(discriminator="kind"),
+]
 
 
 class PromptsConfig(BaseModel):
@@ -109,6 +178,7 @@ class CliConfig(BaseAppConfig):
     http: CliHttpConfig = Field(default_factory=CliHttpConfig)
     full_text: CliRateLimitConfig = Field(default_factory=CliRateLimitConfig)
     pipeline: CliPipelineConfig = Field(default_factory=CliPipelineConfig)
+    source: SourceConfig = Field(default_factory=ArxivSourceConfig)
     prompts: PromptsConfig = Field(default_factory=PromptsConfig)
     export: ExportConfig
     state: StateConfig = Field(default_factory=StateConfig)
@@ -125,9 +195,10 @@ class CliConfig(BaseAppConfig):
 def load_cli_config(config_path: Path) -> CliConfig:
     """Load a CLI config file.
 
-    The ``.env`` file beside the config is loaded, the API key is read from the
-    variable named by ``llm.api_key_env``, and relative paths are resolved from
-    the config file's folder, so a project behaves the same from any working
+    The ``.env`` file beside the config is loaded, the LLM API key is read from
+    the variable named by ``llm.api_key_env`` and the source's from the one
+    named by ``source.api_key_env``, and relative paths are resolved from the
+    config file's folder, so a project behaves the same from any working
     directory.
 
     Raises:
@@ -140,6 +211,7 @@ def load_cli_config(config_path: Path) -> CliConfig:
     raw = load_yaml(resolved)
     load_dotenv(resolved.parent / ".env")
     apply_api_key(raw, _api_key_env(raw))
+    apply_source_api_key(raw)
     return anchor_paths(validate_config(CliConfig, raw, resolved), resolved.parent)
 
 
@@ -170,8 +242,27 @@ def anchor_paths(config: CliConfig, root: Path) -> CliConfig:
     return anchored_config
 
 
+def apply_source_api_key(raw: dict[str, Any]) -> dict[str, Any]:
+    """Read the source's API key from the variable ``source.api_key_env`` names, as ``apply_api_key`` does for the LLM.
+
+    A key in the environment wins over one written in the file. A missing or
+    non-mapping ``source`` section is left alone, so the default source and
+    validation handle it.
+    """
+    source = raw.get("source")
+    if not isinstance(source, dict):
+        return raw
+    env_key = os.getenv(_section_env(source, DEFAULT_SOURCE_API_KEY_ENV), "")
+    if env_key:
+        source["api_key"] = env_key
+    return raw
+
+
 def _api_key_env(raw: dict[str, Any]) -> str:
     llm = raw.get("llm")
-    if isinstance(llm, dict) and isinstance(llm.get("api_key_env"), str) and llm["api_key_env"]:
-        return llm["api_key_env"]
-    return DEFAULT_API_KEY_ENV
+    return _section_env(llm, DEFAULT_API_KEY_ENV) if isinstance(llm, dict) else DEFAULT_API_KEY_ENV
+
+
+def _section_env(section: dict[str, Any], default: str) -> str:
+    name = section.get("api_key_env")
+    return name if isinstance(name, str) and name else default

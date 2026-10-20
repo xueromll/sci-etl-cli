@@ -12,7 +12,6 @@ from sci_etl_cli.errors import CliFailure
 if TYPE_CHECKING:
     import httpx
     from sci_etl_core import (
-        AsyncArxivExtractor,
         AsyncCsvExporter,
         AsyncETLPipeline,
         AsyncOpenAICompatibleClient,
@@ -21,6 +20,7 @@ if TYPE_CHECKING:
         AsyncStateManager,
         PipelineMetadata,
     )
+    from sci_etl_core.extractors.async_base import AsyncExtractor
     from sci_etl_core.processors import RecordValidator
     from sci_etl_core.signals import ShutdownSignal
 
@@ -100,18 +100,58 @@ def build_llm_cache(config: CliConfig) -> AsyncSqliteLLMResponseCache | None:
     return AsyncSqliteLLMResponseCache(config.llm.cache)
 
 
-def build_extractor(config: CliConfig, http_client: httpx.AsyncClient) -> AsyncArxivExtractor:
-    """Build the arXiv extractor from the ``http``, ``pipeline``, and ``full_text`` sections."""
-    from sci_etl_core import AsyncArxivExtractor
-    from sci_etl_core.parsers import LatexTarballParser, PdfPlumberParser
+def build_extractor(config: CliConfig, http_client: httpx.AsyncClient) -> AsyncExtractor:
+    """Build the extractor ``source.kind`` names, with the parsers its full text needs.
 
-    return AsyncArxivExtractor.from_config(
-        config.http,
-        config.pipeline,
-        client=http_client,
-        pdf_parser=PdfPlumberParser(),
-        latex_parser=LatexTarballParser(),
-        full_text=config.full_text,
+    Every source takes ``max_retries`` and ``backoff_factor`` from ``http`` and
+    its rate limiter from ``full_text``. arXiv also waits ``pipeline.search_delay``
+    before each listing request and parses LaTeX e-prints and PDFs; PubMed
+    parses PubMed Central's JATS XML; Semantic Scholar and OpenAlex parse the
+    open-access PDF, and every source falls back to the abstract.
+    """
+    source = config.source
+    if source.kind == "arxiv":
+        from sci_etl_core import AsyncArxivExtractor
+        from sci_etl_core.parsers import LatexTarballParser, PdfPlumberParser
+
+        return AsyncArxivExtractor.from_config(
+            config.http,
+            config.pipeline,
+            client=http_client,
+            pdf_parser=PdfPlumberParser(),
+            latex_parser=LatexTarballParser(),
+            full_text=config.full_text,
+        )
+    settings: dict[str, Any] = {
+        "max_retries": config.http.max_retries,
+        "backoff_factor": config.http.backoff_factor,
+        "rate_limiter": config.full_text.build_limiter(),
+        "api_key": source.api_key.get_secret_value() or None,
+    }
+    if source.kind == "pubmed":
+        from sci_etl_core import AsyncPubMedExtractor
+        from sci_etl_core.parsers import JatsXmlParser
+
+        return AsyncPubMedExtractor(
+            http_client,
+            tool=source.tool,
+            email=source.email,
+            sort=source.sort,
+            full_text_parser=JatsXmlParser(),
+            **settings,
+        )
+    from sci_etl_core.parsers import PdfPlumberParser
+
+    if source.kind == "semantic_scholar":
+        from sci_etl_core import AsyncSemanticScholarExtractor
+
+        return AsyncSemanticScholarExtractor(
+            http_client, PdfPlumberParser(), year=source.year, fields_of_study=source.fields_of_study, **settings
+        )
+    from sci_etl_core import AsyncOpenAlexExtractor
+
+    return AsyncOpenAlexExtractor(
+        http_client, PdfPlumberParser(), filter=source.filter, sort=source.sort, mailto=source.mailto, **settings
     )
 
 
@@ -162,7 +202,7 @@ def build_pipeline(
         CachingLLMClient,
     )
 
-    from sci_etl_cli.reporting import ListingReporter
+    from sci_etl_cli.reporting import listing_reporter
 
     answering = llm_client if llm_cache is None else CachingLLMClient(llm_client, llm_cache, model=config.llm.model)
     entity_extractor: Any = AsyncLLMEntityExtractor(
@@ -175,7 +215,7 @@ def build_pipeline(
     )
     return AsyncETLPipeline.from_config(
         config.pipeline,
-        extractor=ListingReporter(build_extractor(config, http_client), log),
+        extractor=listing_reporter(build_extractor(config, http_client), log),
         relevance_filter=AsyncLLMRelevanceFilter(llm_client=answering, system_prompt=parts.relevance_prompt),
         entity_extractor=entity_extractor,
         exporter=build_exporter(config),
