@@ -37,7 +37,7 @@ installs a matching one:
 | 0.1.x | 0.1.2 or newer 0.1 releases |
 | 0.2.x | 0.2 |
 | 0.3.x | 0.5.1 or newer 0.5 releases |
-| 0.4.x | 0.6 |
+| 0.4.x | 0.7 |
 
 ## Where to go next
 

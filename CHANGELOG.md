@@ -7,8 +7,18 @@ change behavior; each such change is listed under **Changed**.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-20
+
 ### Added
 
+- **`sci-etl forget CONFIG RECORD_ID...`** clears the processed mark and failed
+  attempts of the named arXiv ids by calling the state manager's `forget`,
+  which sci-etl-core 0.7's `Forgetting` protocol describes, so the next
+  `run --rescan` processes them again, for example after a prompt or model
+  change. Each id is reported as `forgotten` or `not tracked`, `--json` prints
+  the same, and the command names the run to follow it with. The command is
+  named after the protocol method rather than `rerun`, because it changes the
+  state and runs nothing itself.
 - `llm.structured_output` asks the endpoint to enforce a JSON schema.
 
 ### Changed
@@ -34,7 +44,8 @@ change behavior; each such change is listed under **Changed**.
   putting the config's folder first on the import path, so a file there can no
   longer replace a module that other code imports. A plug-in module named like
   a standard-library module is rejected with an error naming it.
-- Requires sci-etl-core 0.6.
+- Requires sci-etl-core 0.7, with the upper bound `<0.8`. Nothing in 0.7 is
+  deprecated, and the suite runs with `-W error::DeprecationWarning`.
 
 ## [0.3.0] - 2026-09-26
 
@@ -103,7 +114,8 @@ change behavior; each such change is listed under **Changed**.
 First release: the `init`, `validate`, `search`, `run`, `status`, and `parse`
 commands.
 
-[Unreleased]: https://github.com/xueromll/sci-etl-cli/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/xueromll/sci-etl-cli/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/xueromll/sci-etl-cli/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/xueromll/sci-etl-cli/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/xueromll/sci-etl-cli/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/xueromll/sci-etl-cli/compare/v0.1.0...v0.2.0
