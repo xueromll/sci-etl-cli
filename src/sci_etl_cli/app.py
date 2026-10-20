@@ -6,6 +6,7 @@ from typing import Any
 import click
 from sci_etl_core.exceptions import SciEtlError
 
+from sci_etl_cli.commands.forget import forget_command
 from sci_etl_cli.commands.init import init_command
 from sci_etl_cli.commands.parse import parse_command
 from sci_etl_cli.commands.run import run_command
@@ -63,6 +64,7 @@ cli.add_command(validate_command)
 cli.add_command(search_command)
 cli.add_command(run_command)
 cli.add_command(status_command)
+cli.add_command(forget_command)
 cli.add_command(parse_command)
 
 

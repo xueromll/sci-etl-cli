@@ -18,7 +18,7 @@ def test_version_names_the_cli_and_the_library(run_cli):
 def test_help_lists_every_command_and_the_exit_codes(run_cli):
     result = run_cli("--help")
     assert result.exit_code == 0
-    for command in ("init", "validate", "search", "run", "status", "parse"):
+    for command in ("init", "validate", "search", "run", "status", "forget", "parse"):
         assert command in result.stdout
     assert "130  interrupted after saving state" in result.stdout
 

@@ -14,6 +14,9 @@
 5. **Run it.** `sci-etl run hot-jupiters/config.yaml` exports entities to
    `out/planets.csv` and records progress under `state/`. Run the same command
    again to continue; add `--rescan` to pick up papers submitted since.
+6. **Redo a paper.** After changing a prompt, `sci-etl forget
+   hot-jupiters/config.yaml 2609.00001v1` hands that paper back, and the next
+   `run --rescan` processes it again.
 
 ## Adapting it to your subject
 
