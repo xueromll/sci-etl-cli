@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 
@@ -7,26 +8,54 @@ import click
 from rich.markup import escape
 
 from sci_etl_cli.output import stdout_console
+from sci_etl_cli.settings import SourceKind
 
-_TEMPLATES: tuple[tuple[str, str], ...] = (
-    ("config.yaml", "config.yaml"),
-    ("relevance.txt", "prompts/relevance.txt"),
-    ("extraction.txt", "prompts/extraction.txt"),
-    ("env.example", ".env.example"),
-)
+
+@dataclass(frozen=True, slots=True)
+class Starter:
+    """The template files a starter project is written from."""
+
+    config: str
+    relevance: str
+    extraction: str
+
+    def files(self) -> tuple[tuple[str, str], ...]:
+        return (
+            (self.config, "config.yaml"),
+            (self.relevance, "prompts/relevance.txt"),
+            (self.extraction, "prompts/extraction.txt"),
+            ("env.example", ".env.example"),
+        )
+
+
+STARTERS: dict[SourceKind, Starter] = {
+    "arxiv": Starter("config.yaml", "relevance.txt", "extraction.txt"),
+    "pubmed": Starter("config-pubmed.yaml", "relevance-trials.txt", "extraction-trials.txt"),
+    "semantic_scholar": Starter("config-semantic_scholar.yaml", "relevance-trials.txt", "extraction-trials.txt"),
+    "openalex": Starter("config-openalex.yaml", "relevance-trials.txt", "extraction-trials.txt"),
+}
 
 
 @click.command("init", short_help="Create a starter project.")
 @click.argument("directory", required=False, default=".", type=click.Path(file_okay=False, path_type=Path))
+@click.option(
+    "--source",
+    type=click.Choice(list(STARTERS)),
+    default="arxiv",
+    show_default=True,
+    help="Literature source the starter searches.",
+)
 @click.option("--force", is_flag=True, help="Overwrite files that already exist.")
-def init_command(directory: Path, force: bool) -> None:
+def init_command(directory: Path, source: SourceKind, force: bool) -> None:
     """Create a starter project in DIRECTORY (default: the current folder).
 
     Writes config.yaml, prompts/relevance.txt, prompts/extraction.txt and
-    .env.example. The example collects hot Jupiter measurements from arXiv;
-    change the query, prompts and export columns for your own subject.
+    .env.example. The arXiv example collects hot Jupiter measurements; the
+    PubMed, Semantic Scholar and OpenAlex examples collect the arms of
+    metformin trials. Change the query, prompts and export columns for your
+    own subject.
     """
-    targets = [(template, directory / relative) for template, relative in _TEMPLATES]
+    targets = [(template, directory / relative) for template, relative in STARTERS[source].files()]
     existing = [path for _template, path in targets if path.exists()]
     if existing and not force:
         names = ", ".join(str(path) for path in existing)

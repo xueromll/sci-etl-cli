@@ -21,7 +21,10 @@
 ## Adapting it to your subject
 
 To use the CLI for another subject, change `pipeline.search_query`, both
-prompts, and the `export` columns in the [config file](config-file.md). The
+prompts, and the `export` columns in the [config file](config-file.md). To
+search PubMed, Semantic Scholar, or OpenAlex instead of arXiv, start from
+`sci-etl init --source pubmed` (or `semantic_scholar`, `openalex`), which
+writes a query in that source's syntax and a `source` section. The
 extraction prompt has to ask for JSON containing `result_key`, `key_column`,
 and every value column; `validate` checks this.
 

@@ -1,8 +1,15 @@
 from __future__ import annotations
 
 import pytest
-from sci_etl_core import AsyncArxivExtractor, AsyncOpenAICompatibleClient, AsyncSqliteStateManager, PipelineMetadata
+from sci_etl_core import (
+    AsyncArxivExtractor,
+    AsyncOpenAICompatibleClient,
+    AsyncOpenAlexExtractor,
+    AsyncSqliteStateManager,
+    PipelineMetadata,
+)
 from sci_etl_core.exceptions import ConfigurationError
+from sci_etl_core.extractors.async_base import OffsetListing
 from sci_etl_core.models import ListingPage, RawRecord
 from sci_etl_core.rate_limiter import AioLimiterRateLimiter, SemaphoreRateLimiter
 
@@ -17,7 +24,7 @@ from sci_etl_cli.assembly import (
     read_prompt,
     read_state,
 )
-from sci_etl_cli.reporting import ListingReporter
+from sci_etl_cli.reporting import ListingReporter, OffsetListingReporter, listing_reporter
 from sci_etl_cli.settings import load_cli_config
 
 
@@ -150,11 +157,28 @@ async def test_listing_reporter_logs_pages_and_delegates(mocker):
     inner.cursor_for_offset = mocker.Mock(side_effect=str)
     inner.fetch_full_text = mocker.AsyncMock(return_value="full text")
     messages: list[str] = []
-    reporter = ListingReporter(inner, messages.append)
+    reporter = listing_reporter(inner, messages.append)
 
+    assert isinstance(reporter, OffsetListingReporter)
     assert await reporter.fetch_page("abs:WASP-12", "100", 3) is page
     assert await reporter.fetch_page("abs:WASP-12", "103", 3) is empty
     assert reporter.cursor_for_offset(7) == "7"
     assert await reporter.fetch_full_text(record) == "full text"
     assert messages == ["Listing page at offset 100: 3 entries"]
     inner.fetch_page.assert_any_await("abs:WASP-12", "100", 3)
+
+
+@pytest.mark.asyncio
+async def test_listing_reporter_over_a_cursor_paged_source_numbers_pages_and_has_no_offsets(mocker):
+    record = RawRecord(record_id="W1", title="Work 1", abstract="Dark matter")
+    page = ListingPage(records=(record,), entries=1, next_cursor="opaque")
+    inner = mocker.Mock(spec=AsyncOpenAlexExtractor)
+    inner.fetch_page = mocker.AsyncMock(side_effect=[page, page])
+    messages: list[str] = []
+    reporter = listing_reporter(inner, messages.append)
+
+    assert type(reporter) is ListingReporter
+    assert not isinstance(reporter, OffsetListing)
+    assert await reporter.fetch_page("dark matter", None, 1) is page
+    assert await reporter.fetch_page("dark matter", "opaque", 1) is page
+    assert messages == ["Listing page 1: 1 entries", "Listing page 2: 1 entries"]

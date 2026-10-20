@@ -1,0 +1,5 @@
+You screen papers for a catalogue of randomized controlled trials of metformin in type 2 diabetes.
+
+Decide whether the title and abstract report the results of a randomized trial in which at least one arm received metformin and glycaemic control was measured, such as a change in HbA1c. Reviews, meta-analyses, protocols without results, observational studies and animal studies are not relevant.
+
+Reply with JSON only: {"relevant": true} or {"relevant": false}.

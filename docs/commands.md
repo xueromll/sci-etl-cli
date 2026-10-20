@@ -2,10 +2,10 @@
 
 | Command | What it does | Network | Writes |
 |---------|--------------|---------|--------|
-| `sci-etl init [DIRECTORY]` | Creates a starter project. Refuses to overwrite existing files unless given `--force`. | none | project files |
-| `sci-etl validate CONFIG` | Checks the config, prompts, API key, and packages. `--online` adds one arXiv and one LLM request once the offline checks pass. | only with `--online` | nothing |
-| `sci-etl search CONFIG` | Shows one page of arXiv results, each marked `new` or `processed`. | arXiv | nothing |
-| `sci-etl run CONFIG` | Runs the pipeline, resuming from saved state, and logs token usage at the end. | arXiv and the LLM | export CSV, state, log |
+| `sci-etl init [DIRECTORY]` | Creates a starter project for arXiv, or for `--source pubmed`, `semantic_scholar`, or `openalex`. Refuses to overwrite existing files unless given `--force`. | none | project files |
+| `sci-etl validate CONFIG` | Checks the config, prompts, API keys, and the packages the configured source needs. `--online` adds one listing request to the source and one LLM request once the offline checks pass. | only with `--online` | nothing |
+| `sci-etl search CONFIG` | Shows one page of the source's results, each marked `new` or `processed`. | the source | nothing |
+| `sci-etl run CONFIG` | Runs the pipeline, resuming from saved state, and logs token usage at the end. | the source and the LLM | export CSV, state, log |
 | `sci-etl status CONFIG` | Shows processed records, the saved offset, the last run time, and export rows. | none | nothing |
 | `sci-etl forget CONFIG RECORD_ID...` | Clears the processed mark and failed attempts of each record, so the next `run --rescan` processes it again. | none | state |
 | `sci-etl parse FILE` | Prints the text a bundled parser extracts from a PDF, arXiv e-print, or HTML file. | none | nothing |
@@ -14,22 +14,37 @@ Every command accepts `--help`. Logs and errors go to stderr; `search --json`,
 `status --json`, `forget --json`, and `parse` print their results to stdout,
 so they can be piped.
 
+## Sources
+
+`source.kind` in the [config file](config-file.md#sources) picks arXiv, PubMed,
+Semantic Scholar, or OpenAlex; every command works the same way on each.
+`search` labels its id column by source: `arXiv id`, `PMID`, `S2 paper id`,
+or `OpenAlex work id`; `search --json` always calls it `record_id`, as the
+export CSV does. `validate` checks the sci-etl-core extras the source needs
+and names the missing one, such as `pip install "sci-etl-core[xml]"` for
+PubMed. `init --source pubmed` (or `semantic_scholar`, `openalex`) writes a
+starter that collects the arms of metformin trials, with a query in that
+source's syntax; the default starter searches arXiv for hot Jupiters.
+
 ## Running pipelines
 
 **Stopping a run.** Press Ctrl+C once: no new paper starts, the papers in
 flight finish and are saved, state is saved, and the command exits with 130.
 The next run continues with the rest. A second Ctrl+C exits immediately.
 
-**Resuming.** A run starts at the listing offset saved by the previous one.
+**Resuming.** A run starts at the listing position saved by the previous one.
 arXiv lists the newest submissions first, so new papers push older ones to
 higher offsets. Set `pipeline.newest_first: true` to have every run look for
 new submissions at the head of the listing first and then continue from the
 saved offset. Or pass `--rescan` to start once at offset 0; processed papers
 are skipped by id, which costs listing requests but no LLM calls. `--rescan`
-and `--start-index` cannot be combined with `newest_first`.
+and `--start-index` cannot be combined with `newest_first`. OpenAlex pages by
+opaque cursor rather than offset, so `newest_first` and `--start-index` above
+0 are refused with a usage error before any request; `--rescan` starts again
+from its first page.
 
 **Reprocessing papers.** `sci-etl forget CONFIG RECORD_ID...` clears the
-processed mark and failed attempts of the arXiv ids you name, for example after
+processed mark and failed attempts of the record ids you name, for example after
 a prompt or model change, and reports each id as `forgotten` or `not tracked`.
 Run it between runs, because a run reads the processed ids when it starts. The
 saved offset is kept, so follow it with `run --rescan`, which starts at offset
@@ -48,7 +63,7 @@ default), so a paper retried after a crash or a rescan costs no tokens for the
 questions already answered. Answers the library rejects are not kept. Set
 `llm.cache: null` to turn the cache off.
 
-**Throttling.** When arXiv or the LLM provider answers `429` with a
+**Throttling.** When the source or the LLM provider answers `429` with a
 `Retry-After` header, the request waits as long as it asks, up to 60 seconds,
 and each retry is logged.
 

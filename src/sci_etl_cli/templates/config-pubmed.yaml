@@ -1,0 +1,48 @@
+llm:
+  base_url: https://api.openai.com/v1
+  model: gpt-4o-mini
+  timeout: 120
+  api_key_env: LLM_API_KEY
+
+http:
+  user_agent: "sci-etl-project/0.1 (mailto:you@example.org)"
+  max_retries: 4
+  backoff_factor: 5.0
+  timeout: 25
+
+# NCBI allows 3 requests per second without an API key and 10 with one.
+full_text:
+  max_rate: 3
+  time_period: 1.0
+
+pipeline:
+  search_query: 'metformin[Title/Abstract] AND "Diabetes Mellitus, Type 2"[MeSH Terms] AND randomized controlled trial[Publication Type]'
+  total_limit: 20
+  page_size: 100
+  sleep_between: 1.0
+  max_concurrency: 2
+
+source:
+  kind: pubmed
+  api_key_env: SOURCE_API_KEY
+  tool: sci-etl-project
+  email: you@example.org
+
+prompts:
+  relevance: prompts/relevance.txt
+  extraction: prompts/extraction.txt
+  result_key: trials
+
+export:
+  destination: out/trials.csv
+  key_column: intervention
+  value_columns: [participants, duration_weeks, hba1c_change_percent]
+
+state:
+  backend: file
+  processed_ids: state/processed_ids.txt
+  metadata: state/metadata.json
+
+logging:
+  file: logs/run.log
+  level: INFO

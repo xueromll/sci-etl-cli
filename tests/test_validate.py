@@ -45,7 +45,7 @@ def test_missing_package_takes_precedence_with_exit_code_four(run_cli, make_proj
     monkeypatch.setattr(validate, "find_spec", lambda name: None if name == "pdfplumber" else object())
     result = run_cli("validate", str(make_project()))
     assert result.exit_code == 4
-    assert "missing: pdfplumber (sci-etl-core[pdf])" in result.stdout
+    assert 'missing: pdfplumber; install with: pip install "sci-etl-core[pdf]"' in result.stdout
 
 
 def test_configured_plugins_are_loaded(run_cli, make_project, write_plugins):
