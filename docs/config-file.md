@@ -85,6 +85,8 @@ logging:
 | `export.value_columns` | required | Fields that get their own columns, in order. Any other field the model returns is kept as JSON in the `extra` column. |
 | `export.escape_formulas` | `true` | Prefix cells that a spreadsheet would run as formulas with an apostrophe. Plain numbers such as `-5.361` are left unchanged. |
 | `export.validators` | none | `module:attribute` references to `RecordValidator`s; an entity any of them rejects is dropped and logged with every reason. See [Plug-ins](plugins.md). |
+| `state.backend` | `file` | `file` uses `processed_ids` and `metadata`; `sqlite` uses `database`. |
+| `logging.file`, `logging.level` | `logs/run.log`, `INFO` | Log file for `run` (`null` for none) and the level: `DEBUG`, `INFO`, `WARNING`, or `ERROR`. |
 
 The CSV has one row per extracted entity. Its columns are `record_id`, the
 arXiv id of the paper, then `key_column`, the value columns, and `extra`.
@@ -92,5 +94,3 @@ Values are written as the model returned them, and nothing is merged: two
 papers that report the same object give two rows, so a disagreement between
 papers stays visible. Running a paper again replaces its rows. `record_id` and
 `extra` cannot be used as column names.
-| `state.backend` | `file` | `file` uses `processed_ids` and `metadata`; `sqlite` uses `database`. |
-| `logging.file`, `logging.level` | `logs/run.log`, `INFO` | Log file for `run` (`null` for none) and the level: `DEBUG`, `INFO`, `WARNING`, or `ERROR`. |
